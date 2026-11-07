@@ -1,0 +1,6 @@
+# HTTPS in front of the server. Caddy gets and renews the certificate by itself.
+# Replace the address with your own domain, and keep the server's port closed to the internet.
+api.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:8080
+}

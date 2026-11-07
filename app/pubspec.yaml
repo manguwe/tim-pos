@@ -1,0 +1,38 @@
+name: tim_pos
+description: TIM-POS, an offline-first point of sale for shops.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Encrypted SQLite (SQLCipher). Same API as sqflite.
+  sqflite_sqlcipher: ^3.4.1
+  # Keeps the database key, device secret and licence token in the Android Keystore.
+  flutter_secure_storage: ^11.2.0
+  # Checks the signature on the licence, offline.
+  ed25519_edwards: ^0.3.2
+  http: ^1.2.0
+  path: ^1.9.0
+  # HMAC-SHA256 for PIN hashing.
+  crypto: ^3.0.3
+  # Sends receipts to Bluetooth thermal printers (Android classic Bluetooth).
+  print_bluetooth_thermal: ^1.1.0
+  # Camera barcode reader (used only in lib/ui/scan_screen.dart).
+  mobile_scanner: ^6.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  # Plain SQLite on a desktop, so the sync and schema tests can run with `flutter test`.
+  sqflite_common_ffi: ^2.3.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sql/local_schema.sql
+    - assets/sql/schema_manifest.json

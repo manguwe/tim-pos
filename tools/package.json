@@ -1,0 +1,10 @@
+{
+  "name": "tim-pos-tools",
+  "private": true,
+  "type": "module",
+  "description": "Generates the phone database from one definition and tests it, with a reference sync client, against the real server.",
+  "scripts": {
+    "gen": "node --disable-warning=ExperimentalWarning gen-local-schema.ts && node --disable-warning=ExperimentalWarning gen-licence-vectors.ts && node --disable-warning=ExperimentalWarning gen-money-vectors.ts && node --disable-warning=ExperimentalWarning gen-auth-vectors.ts && node --disable-warning=ExperimentalWarning gen-receipt-vectors.ts",
+    "test": "node --test --disable-warning=ExperimentalWarning \"test/*.test.ts\""
+  }
+}

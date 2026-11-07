@@ -1,0 +1,16 @@
+node_modules/
+server/data/
+data/
+*.env
+secrets.env
+*.db
+*.db-wal
+*.db-shm
+*.jks
+*.keystore
+key.properties
+app/android/
+app/build/
+app/.dart_tool/
+_shell/
+dashboard/node_modules/

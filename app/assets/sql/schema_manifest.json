@@ -1,0 +1,1016 @@
+{
+ "shops": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "country_code",
+   "base_currency",
+   "tax_registered",
+   "tax_number",
+   "settings"
+  ]
+ },
+ "branches": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "address",
+   "phone",
+   "is_active"
+  ]
+ },
+ "roles": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "permissions"
+  ]
+ },
+ "users": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "phone",
+   "email",
+   "role_id",
+   "pin_hash",
+   "password_hash",
+   "is_active",
+   "failed_attempts",
+   "locked_until"
+  ]
+ },
+ "user_branches": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "user_id",
+   "branch_id"
+  ]
+ },
+ "approvals": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "action",
+   "requested_by",
+   "approved_by",
+   "ref_type",
+   "ref_id"
+  ]
+ },
+ "audit_log": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "user_id",
+   "action",
+   "table_name",
+   "row_id",
+   "before",
+   "after"
+  ]
+ },
+ "categories": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "parent_id",
+   "sort_order"
+  ]
+ },
+ "units": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "code",
+   "kind"
+  ]
+ },
+ "tax_classes": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "rate_bp",
+   "is_inclusive"
+  ]
+ },
+ "products": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "sku",
+   "category_id",
+   "brand",
+   "base_unit_id",
+   "tax_class_id",
+   "is_active",
+   "track_stock",
+   "track_expiry",
+   "allow_negative_stock",
+   "parent_product_id",
+   "kind",
+   "cost_minor",
+   "cost_currency",
+   "image_ref"
+  ]
+ },
+ "product_units": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "product_id",
+   "unit_id",
+   "factor_milli"
+  ]
+ },
+ "product_barcodes": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "product_id",
+   "unit_id",
+   "barcode"
+  ]
+ },
+ "bundle_items": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "bundle_product_id",
+   "component_product_id",
+   "qty_milli"
+  ]
+ },
+ "price_tiers": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "is_default"
+  ]
+ },
+ "product_prices": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "product_id",
+   "tier_id",
+   "unit_id",
+   "currency",
+   "price_minor",
+   "effective_from"
+  ]
+ },
+ "promotions": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "kind",
+   "rules",
+   "starts_at",
+   "ends_at",
+   "is_active"
+  ]
+ },
+ "promotion_products": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "promotion_id",
+   "product_id",
+   "category_id"
+  ]
+ },
+ "stock_movements": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "branch_id",
+   "product_id",
+   "batch_id",
+   "type",
+   "qty_milli",
+   "unit_cost_minor",
+   "cost_currency",
+   "ref_type",
+   "ref_id",
+   "reason"
+  ]
+ },
+ "stock_batches": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "product_id",
+   "branch_id",
+   "batch_code",
+   "expiry_date",
+   "received_at"
+  ]
+ },
+ "stock_takes": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "branch_id",
+   "scope",
+   "status",
+   "started_at",
+   "closed_at",
+   "approved_by"
+  ]
+ },
+ "stock_take_lines": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "stock_take_id",
+   "product_id",
+   "batch_id",
+   "expected_qty_milli",
+   "counted_qty_milli"
+  ]
+ },
+ "stock_transfers": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "from_branch_id",
+   "to_branch_id",
+   "status",
+   "sent_at",
+   "received_at"
+  ]
+ },
+ "stock_transfer_lines": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "transfer_id",
+   "product_id",
+   "batch_id",
+   "qty_milli"
+  ]
+ },
+ "currencies": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "code",
+   "name",
+   "symbol",
+   "minor_units",
+   "rounding_increment_minor",
+   "is_active"
+  ]
+ },
+ "exchange_rates": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "from_currency",
+   "to_currency",
+   "rate_micro",
+   "set_by",
+   "effective_from"
+  ]
+ },
+ "payment_methods": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "code",
+   "name",
+   "kind",
+   "currency_scope",
+   "requires_reference",
+   "opens_drawer",
+   "is_active"
+  ]
+ },
+ "shifts": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "branch_id",
+   "user_id",
+   "opened_at",
+   "closed_at",
+   "status"
+  ]
+ },
+ "shift_cash": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "shift_id",
+   "currency",
+   "opening_float_minor",
+   "expected_minor",
+   "counted_minor",
+   "difference_minor"
+  ]
+ },
+ "cash_events": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "shift_id",
+   "currency",
+   "type",
+   "amount_minor",
+   "reason"
+  ]
+ },
+ "sales": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "branch_id",
+   "shift_id",
+   "user_id",
+   "customer_id",
+   "price_tier_id",
+   "receipt_no",
+   "status",
+   "sale_currency",
+   "subtotal_minor",
+   "discount_minor",
+   "tax_minor",
+   "total_minor",
+   "rates_used",
+   "note",
+   "completed_at"
+  ]
+ },
+ "sale_lines": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "sale_id",
+   "product_id",
+   "batch_id",
+   "description",
+   "unit_id",
+   "qty_milli",
+   "unit_price_minor",
+   "price_currency",
+   "discount_minor",
+   "tax_rate_bp",
+   "tax_minor",
+   "line_total_minor",
+   "unit_cost_minor",
+   "promotion_id"
+  ]
+ },
+ "sale_payments": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "sale_id",
+   "method_code",
+   "currency",
+   "amount_minor",
+   "rate_to_sale_micro",
+   "reference",
+   "is_change"
+  ]
+ },
+ "sale_returns": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "original_sale_id",
+   "receipt_no",
+   "kind",
+   "shift_id",
+   "reason",
+   "refund_method",
+   "refund_currency",
+   "refund_minor",
+   "approved_by"
+  ]
+ },
+ "return_payouts": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "return_id",
+   "method_code",
+   "currency",
+   "amount_minor",
+   "rate_to_sale_micro",
+   "reference"
+  ]
+ },
+ "sale_return_lines": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "return_id",
+   "sale_line_id",
+   "qty_milli",
+   "restock",
+   "amount_minor"
+  ]
+ },
+ "sale_voids": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "sale_id",
+   "reason",
+   "approved_by",
+   "voided_at"
+  ]
+ },
+ "account_payments": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "customer_id",
+   "sale_id",
+   "receipt_no",
+   "method_code",
+   "currency",
+   "amount_minor",
+   "target_currency",
+   "rate_to_target_micro",
+   "applied_minor",
+   "reference",
+   "user_id"
+  ]
+ },
+ "layby_payments": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "sale_id",
+   "payment_id",
+   "due_note"
+  ]
+ },
+ "customers": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "phone",
+   "address",
+   "tax_number",
+   "price_tier_id",
+   "credit_limit_minor",
+   "credit_currency",
+   "is_active"
+  ]
+ },
+ "customer_ledger": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "customer_id",
+   "type",
+   "currency",
+   "amount_minor",
+   "ref_type",
+   "ref_id"
+  ]
+ },
+ "loyalty_ledger": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "customer_id",
+   "points",
+   "ref_type",
+   "ref_id",
+   "reason"
+  ]
+ },
+ "suppliers": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "phone",
+   "address",
+   "terms",
+   "is_active"
+  ]
+ },
+ "supplier_products": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "supplier_id",
+   "product_id",
+   "supplier_code",
+   "last_cost_minor",
+   "cost_currency"
+  ]
+ },
+ "purchase_orders": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "supplier_id",
+   "branch_id",
+   "order_no",
+   "status",
+   "currency",
+   "ordered_at",
+   "expected_at"
+  ]
+ },
+ "purchase_order_lines": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "purchase_order_id",
+   "product_id",
+   "unit_id",
+   "qty_milli",
+   "cost_minor"
+  ]
+ },
+ "goods_received": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "supplier_id",
+   "branch_id",
+   "purchase_order_id",
+   "receipt_ref",
+   "currency",
+   "received_at"
+  ]
+ },
+ "goods_received_lines": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "goods_received_id",
+   "product_id",
+   "batch_code",
+   "expiry_date",
+   "qty_milli",
+   "cost_minor"
+  ]
+ },
+ "supplier_invoices": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "supplier_id",
+   "goods_received_id",
+   "invoice_no",
+   "currency",
+   "amount_minor",
+   "due_date"
+  ]
+ },
+ "supplier_payments": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "supplier_id",
+   "currency",
+   "amount_minor",
+   "method_code",
+   "reference",
+   "target_currency",
+   "applied_minor",
+   "rate_to_target_micro",
+   "user_id"
+  ]
+ },
+ "supplier_ledger": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "supplier_id",
+   "type",
+   "currency",
+   "amount_minor",
+   "ref_type",
+   "ref_id"
+  ]
+ },
+ "expense_categories": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "is_active"
+  ]
+ },
+ "expenses": {
+  "kind": "append",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "branch_id",
+   "category_id",
+   "currency",
+   "amount_minor",
+   "payee",
+   "method_code",
+   "note",
+   "photo_ref",
+   "spent_at"
+  ]
+ },
+ "receipt_templates": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "name",
+   "kind",
+   "paper_width_mm",
+   "layout",
+   "is_default"
+  ]
+ },
+ "settings": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "scope",
+   "scope_id",
+   "key",
+   "value"
+  ]
+ },
+ "fiscal_documents": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "sale_id",
+   "kind",
+   "payload",
+   "status",
+   "authority_ref",
+   "sent_at",
+   "attempts"
+  ]
+ },
+ "files": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "owner_type",
+   "owner_id",
+   "kind",
+   "local_path",
+   "remote_ref",
+   "sha256",
+   "size_bytes",
+   "uploaded_at"
+  ]
+ }
+}

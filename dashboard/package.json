@@ -1,0 +1,22 @@
+{
+  "name": "tim-pos-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TIM-POS vendor dashboard (React). Talks to the TIM-POS server API and is served by it at /dashboard/.",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.6.0"
+  }
+}

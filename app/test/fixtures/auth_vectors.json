@@ -1,0 +1,85 @@
+{
+ "hashes": [
+  {
+   "pin": "2580",
+   "iterations": 1,
+   "stored": "pbkdf2-sha256$1$AAAAAAAAAAAAAAAAAAAAAA==$iWyp6kZxzb0Zmt9M3pif18g62j69iJC0JDH8b4gFRcM="
+  },
+  {
+   "pin": "2580",
+   "iterations": 10000,
+   "stored": "pbkdf2-sha256$10000$q83vASNFZ4mrze8BI0Vniw==$nxBAUpWpzwebhpQdxgClpvK491GGt5384wJ0TSwUf5Y="
+  },
+  {
+   "pin": "7391",
+   "iterations": 10000,
+   "stored": "pbkdf2-sha256$10000$/////////////////////w==$u18IT6QrSqSKJcSKTyCN6j0beOGMIFJ3BkaEoBkvfIU="
+  },
+  {
+   "pin": "12345679",
+   "iterations": 2,
+   "stored": "pbkdf2-sha256$2$q83vASNFZ4mrze8BI0Vniw==$N9QIjuk01l7dq2h6f8iVpLgzK+7Nrcx03Vya+aGWRMk="
+  },
+  {
+   "pin": "9081",
+   "iterations": 10000,
+   "stored": "pbkdf2-sha256$10000$AAAAAAAAAAAAAAAAAAAAAA==$XWnTqbhOzMWB//KVJf3VbzWDOKylb5zC2pbCvpMkSyA="
+  }
+ ],
+ "pins": {
+  "123": false,
+  "1111": false,
+  "1234": false,
+  "1357": true,
+  "2580": true,
+  "4321": false,
+  "9081": true,
+  "56789": false,
+  "98765": false,
+  "112233": true,
+  "12345679": true,
+  "123456789": false,
+  "": false,
+  "abcd": false,
+  "0000": false,
+  "12 4": false
+ },
+ "lock": [
+  {
+   "failed": 0,
+   "ms": 0
+  },
+  {
+   "failed": 1,
+   "ms": 0
+  },
+  {
+   "failed": 4,
+   "ms": 0
+  },
+  {
+   "failed": 5,
+   "ms": 300000
+  },
+  {
+   "failed": 6,
+   "ms": 600000
+  },
+  {
+   "failed": 7,
+   "ms": 1200000
+  },
+  {
+   "failed": 8,
+   "ms": 2400000
+  },
+  {
+   "failed": 12,
+   "ms": 3600000
+  },
+  {
+   "failed": 30,
+   "ms": 3600000
+  }
+ ]
+}

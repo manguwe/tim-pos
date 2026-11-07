@@ -1,0 +1,131 @@
+{
+ "public_key_raw": "XYzfwDMoE4IgnaIXVVSRYHHy0oRa7pq0uhEynqHS4KA",
+ "other_public_key_raw": "ES4dFzzH7F0u4yBUIx2133ADWIl3k5lrSEuJI7Mpwlk",
+ "payload": {
+  "v": 1,
+  "licence_id": "lic-00000001",
+  "shop_id": "shop-0000001",
+  "shop_name": "Mbare Mini Market — Café",
+  "device_id": "dev-00000001",
+  "receipt_prefix": "D1",
+  "plan": "Standard",
+  "features": [
+   "multi_currency",
+   "credit"
+  ],
+  "max_devices": 2,
+  "max_branches": 1,
+  "issued_at": 1793491200000,
+  "expires_at": 1796083200000,
+  "grace_days": 7,
+  "max_offline_days": 60,
+  "check_by": 1798675200000
+ },
+ "token": "eyJ2IjoxLCJsaWNlbmNlX2lkIjoibGljLTAwMDAwMDAxIiwic2hvcF9pZCI6InNob3AtMDAwMDAwMSIsInNob3BfbmFtZSI6Ik1iYXJlIE1pbmkgTWFya2V0IOKAlCBDYWbDqSIsImRldmljZV9pZCI6ImRldi0wMDAwMDAwMSIsInJlY2VpcHRfcHJlZml4IjoiRDEiLCJwbGFuIjoiU3RhbmRhcmQiLCJmZWF0dXJlcyI6WyJtdWx0aV9jdXJyZW5jeSIsImNyZWRpdCJdLCJtYXhfZGV2aWNlcyI6MiwibWF4X2JyYW5jaGVzIjoxLCJpc3N1ZWRfYXQiOjE3OTM0OTEyMDAwMDAsImV4cGlyZXNfYXQiOjE3OTYwODMyMDAwMDAsImdyYWNlX2RheXMiOjcsIm1heF9vZmZsaW5lX2RheXMiOjYwLCJjaGVja19ieSI6MTc5ODY3NTIwMDAwMH0.Q2Ad7r8UG_JSZ9LV016C37PJ-_epQYcAZXBT1XtxU4sgV5ryCisvj9UJnlKEjDiKEQi6Qc0i-HAa_XjwqneaCA",
+ "bad_tokens": {
+  "body_changed": "AyJ2IjoxLCJsaWNlbmNlX2lkIjoibGljLTAwMDAwMDAxIiwic2hvcF9pZCI6InNob3AtMDAwMDAwMSIsInNob3BfbmFtZSI6Ik1iYXJlIE1pbmkgTWFya2V0IOKAlCBDYWbDqSIsImRldmljZV9pZCI6ImRldi0wMDAwMDAwMSIsInJlY2VpcHRfcHJlZml4IjoiRDEiLCJwbGFuIjoiU3RhbmRhcmQiLCJmZWF0dXJlcyI6WyJtdWx0aV9jdXJyZW5jeSIsImNyZWRpdCJdLCJtYXhfZGV2aWNlcyI6MiwibWF4X2JyYW5jaGVzIjoxLCJpc3N1ZWRfYXQiOjE3OTM0OTEyMDAwMDAsImV4cGlyZXNfYXQiOjE3OTYwODMyMDAwMDAsImdyYWNlX2RheXMiOjcsIm1heF9vZmZsaW5lX2RheXMiOjYwLCJjaGVja19ieSI6MTc5ODY3NTIwMDAwMH0.Q2Ad7r8UG_JSZ9LV016C37PJ-_epQYcAZXBT1XtxU4sgV5ryCisvj9UJnlKEjDiKEQi6Qc0i-HAa_XjwqneaCA",
+  "signature_changed": "eyJ2IjoxLCJsaWNlbmNlX2lkIjoibGljLTAwMDAwMDAxIiwic2hvcF9pZCI6InNob3AtMDAwMDAwMSIsInNob3BfbmFtZSI6Ik1iYXJlIE1pbmkgTWFya2V0IOKAlCBDYWbDqSIsImRldmljZV9pZCI6ImRldi0wMDAwMDAwMSIsInJlY2VpcHRfcHJlZml4IjoiRDEiLCJwbGFuIjoiU3RhbmRhcmQiLCJmZWF0dXJlcyI6WyJtdWx0aV9jdXJyZW5jeSIsImNyZWRpdCJdLCJtYXhfZGV2aWNlcyI6MiwibWF4X2JyYW5jaGVzIjoxLCJpc3N1ZWRfYXQiOjE3OTM0OTEyMDAwMDAsImV4cGlyZXNfYXQiOjE3OTYwODMyMDAwMDAsImdyYWNlX2RheXMiOjcsIm1heF9vZmZsaW5lX2RheXMiOjYwLCJjaGVja19ieSI6MTc5ODY3NTIwMDAwMH0.A2Ad7r8UG_JSZ9LV016C37PJ-_epQYcAZXBT1XtxU4sgV5ryCisvj9UJnlKEjDiKEQi6Qc0i-HAa_XjwqneaCA",
+  "signature_cut": "eyJ2IjoxLCJsaWNlbmNlX2lkIjoibGljLTAwMDAwMDAxIiwic2hvcF9pZCI6InNob3AtMDAwMDAwMSIsInNob3BfbmFtZSI6Ik1iYXJlIE1pbmkgTWFya2V0IOKAlCBDYWbDqSIsImRldmljZV9pZCI6ImRldi0wMDAwMDAwMSIsInJlY2VpcHRfcHJlZml4IjoiRDEiLCJwbGFuIjoiU3RhbmRhcmQiLCJmZWF0dXJlcyI6WyJtdWx0aV9jdXJyZW5jeSIsImNyZWRpdCJdLCJtYXhfZGV2aWNlcyI6MiwibWF4X2JyYW5jaGVzIjoxLCJpc3N1ZWRfYXQiOjE3OTM0OTEyMDAwMDAsImV4cGlyZXNfYXQiOjE3OTYwODMyMDAwMDAsImdyYWNlX2RheXMiOjcsIm1heF9vZmZsaW5lX2RheXMiOjYwLCJjaGVja19ieSI6MTc5ODY3NTIwMDAwMH0.Q2Ad7r8UG_JSZ9LV016C37PJ-_epQYcAZXBT1Xtx",
+  "no_dot": "eyJ2IjoxLCJsaWNlbmNlX2lkIjoibGljLTAwMDAwMDAxIiwic2hvcF9pZCI6InNob3AtMDAwMDAwMSIsInNob3BfbmFtZSI6Ik1iYXJlIE1pbmkgTWFya2V0IOKAlCBDYWbDqSIsImRldmljZV9pZCI6ImRldi0wMDAwMDAwMSIsInJlY2VpcHRfcHJlZml4IjoiRDEiLCJwbGFuIjoiU3RhbmRhcmQiLCJmZWF0dXJlcyI6WyJtdWx0aV9jdXJyZW5jeSIsImNyZWRpdCJdLCJtYXhfZGV2aWNlcyI6MiwibWF4X2JyYW5jaGVzIjoxLCJpc3N1ZWRfYXQiOjE3OTM0OTEyMDAwMDAsImV4cGlyZXNfYXQiOjE3OTYwODMyMDAwMDAsImdyYWNlX2RheXMiOjcsIm1heF9vZmZsaW5lX2RheXMiOjYwLCJjaGVja19ieSI6MTc5ODY3NTIwMDAwMH0",
+  "empty": "",
+  "three_parts": "eyJ2IjoxLCJsaWNlbmNlX2lkIjoibGljLTAwMDAwMDAxIiwic2hvcF9pZCI6InNob3AtMDAwMDAwMSIsInNob3BfbmFtZSI6Ik1iYXJlIE1pbmkgTWFya2V0IOKAlCBDYWbDqSIsImRldmljZV9pZCI6ImRldi0wMDAwMDAwMSIsInJlY2VpcHRfcHJlZml4IjoiRDEiLCJwbGFuIjoiU3RhbmRhcmQiLCJmZWF0dXJlcyI6WyJtdWx0aV9jdXJyZW5jeSIsImNyZWRpdCJdLCJtYXhfZGV2aWNlcyI6MiwibWF4X2JyYW5jaGVzIjoxLCJpc3N1ZWRfYXQiOjE3OTM0OTEyMDAwMDAsImV4cGlyZXNfYXQiOjE3OTYwODMyMDAwMDAsImdyYWNlX2RheXMiOjcsIm1heF9vZmZsaW5lX2RheXMiOjYwLCJjaGVja19ieSI6MTc5ODY3NTIwMDAwMH0.Q2Ad7r8UG_JSZ9LV016C37PJ-_epQYcAZXBT1XtxU4sgV5ryCisvj9UJnlKEjDiKEQi6Qc0i-HAa_XjwqneaCA.x",
+  "not_base64": "!!!.???"
+ },
+ "evaluations": [
+  {
+   "name": "issued",
+   "now": 1793491200000,
+   "expected": {
+    "state": "active",
+    "days_left": 30,
+    "expires_soon": false
+   }
+  },
+  {
+   "name": "mid",
+   "now": 1794355200000,
+   "expected": {
+    "state": "active",
+    "days_left": 20,
+    "expires_soon": false
+   }
+  },
+  {
+   "name": "expires_soon",
+   "now": 1795219200000,
+   "expected": {
+    "state": "active",
+    "days_left": 10,
+    "expires_soon": true
+   }
+  },
+  {
+   "name": "exactly_expires",
+   "now": 1796083200000,
+   "expected": {
+    "state": "active",
+    "days_left": 0,
+    "expires_soon": true
+   }
+  },
+  {
+   "name": "one_ms_into_grace",
+   "now": 1796083200001,
+   "expected": {
+    "state": "grace",
+    "days_left": 0,
+    "grace_days_left": 7
+   }
+  },
+  {
+   "name": "grace_middle",
+   "now": 1796342400000,
+   "expected": {
+    "state": "grace",
+    "days_left": 0,
+    "grace_days_left": 4
+   }
+  },
+  {
+   "name": "exactly_grace_end",
+   "now": 1796688000000,
+   "expected": {
+    "state": "grace",
+    "days_left": 0,
+    "grace_days_left": 0
+   }
+  },
+  {
+   "name": "expired",
+   "now": 1796688000001,
+   "expected": {
+    "state": "locked",
+    "reason": "expired"
+   }
+  },
+  {
+   "name": "expired_long",
+   "now": 1798588800000,
+   "expected": {
+    "state": "locked",
+    "reason": "expired"
+   }
+  },
+  {
+   "name": "exactly_check_by",
+   "now": 1798675200000,
+   "expected": {
+    "state": "locked",
+    "reason": "expired"
+   }
+  },
+  {
+   "name": "sync_overdue",
+   "now": 1798675200001,
+   "expected": {
+    "state": "locked",
+    "reason": "sync_overdue"
+   }
+  }
+ ]
+}
