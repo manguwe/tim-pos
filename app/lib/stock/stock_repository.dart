@@ -241,7 +241,7 @@ class StockRepository {
       final partial = productIds != null && productIds.isNotEmpty;
       final products = [
         for (final p in await tx.query('select id, name from products where deleted_at is null and is_active = 1 and track_stock = 1 order by name'))
-          if (!partial || productIds!.contains(p['id'])) p,
+          if (!partial || productIds.contains(p['id'])) p,
       ];
       if (products.isEmpty) throw SetupError('nothing_to_count', 'There are no stock-keeping products to count.');
       final takeId = await _add(tx, 'stock_takes', {'branch_id': branchId, 'scope': partial ? 'partial' : 'full', 'status': 'open', 'started_at': now, 'closed_at': null, 'approved_by': null}, now, versioned: true);

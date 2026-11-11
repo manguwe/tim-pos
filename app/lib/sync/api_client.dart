@@ -56,7 +56,7 @@ class ApiClient implements ApiTransport {
         res = await _client.get(uri, headers: headers).timeout(_timeout);
       } else {
         headers['content-type'] = 'application/json';
-        var bytes = utf8.encode(jsonEncode(body ?? {}));
+        List<int> bytes = utf8.encode(jsonEncode(body ?? {}));
         if (bytes.length > _gzipOver) {
           // Small compressed batches are what keep sync cheap on a data bundle.
           bytes = gzip.encode(bytes);

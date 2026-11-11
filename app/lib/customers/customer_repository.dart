@@ -7,6 +7,7 @@ import '../core/uuid7.dart';
 import '../data/sql_db.dart';
 import '../selling/catalog.dart' show CurrencyInfo;
 import '../selling/money.dart';
+import '../selling/selling.dart' show CartPayment;
 import '../setup/setup_repository.dart' show SetupError;
 
 typedef _Row = Map<String, Object?>;
@@ -47,12 +48,8 @@ class CustomerSummary {
   final int laybyOpen;
 }
 
-class PaymentInput {
-  const PaymentInput({required this.methodCode, required this.currency, required this.amountMinor, this.reference});
-  final String methodCode, currency;
-  final int amountMinor;
-  final String? reference;
-}
+/// A payment taken against a customer's account or layby. It is the same shape as a payment taken at the till.
+typedef PaymentInput = CartPayment;
 
 class PaymentResult {
   const PaymentResult({required this.paymentId, required this.receiptNo, required this.appliedMinor, required this.targetCurrency, required this.balanceAfterMinor, required this.opensDrawer});

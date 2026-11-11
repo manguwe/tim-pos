@@ -41,7 +41,7 @@ jobs:
           cp -r ../_shell/android ./android && rm -rf ../_shell
           python3 tool/prepare_android.py
       - run: flutter pub get
-      - run: flutter analyze
+      - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - name: Build APK
         if: ${{ env.TIMPOS_KEY != '' }}

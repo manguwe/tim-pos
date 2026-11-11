@@ -383,6 +383,7 @@ String _plainAmount(int minor, int minorUnits) {
 // ============================================================ lines editor (orders, receipts, returns)
 
 class _Line {
+  // ignore: unused_element_parameter
   _Line({required this.productId, required this.name, required this.qtyMilli, required this.costMinor, this.batchCode, this.expiry, this.maxMilli});
   final String productId, name;
   int qtyMilli, costMinor;

@@ -8,7 +8,7 @@ import '../printing/print_service.dart';
 import '../shifts/shift_repository.dart';
 import '../selling/cart_controller.dart';
 import '../selling/catalog.dart';
-import '../selling/selling.dart';
+import '../selling/selling.dart' hide Row;
 import 'customer_screens.dart';
 import 'printer_screens.dart';
 import 'scan_screen.dart';

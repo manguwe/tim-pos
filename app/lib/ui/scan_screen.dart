@@ -96,7 +96,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       body: Stack(children: [
         MobileScanner(
           controller: _controller,
-          errorBuilder: (context, error) => const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('The camera could not start. Allow camera access for TIM-POS in the phone settings, or use Type it.', textAlign: TextAlign.center))),
+          errorBuilder: (context, error, child) => const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('The camera could not start. Allow camera access for TIM-POS in the phone settings, or use Type it.', textAlign: TextAlign.center))),
           onDetect: (capture) {
             for (final b in capture.barcodes) {
               final v = b.rawValue;
