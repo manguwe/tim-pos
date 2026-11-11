@@ -115,7 +115,7 @@ void main() {
 
   test('a scan of an inactive product is reported, not sold', () async {
     await repo().add('bread', 'ABC-123');
-    await db.exec('update products set is_active = 0 where id = ?', ['bread']);
+    await db.exec('update products set is_active = 0, version = version + 1 where id = ?', ['bread']);
     final r = await repo().resolve('ABC-123');
     expect([r.status, r.productId, r.productName], [ScanStatus.inactive, 'bread', 'Bread']);
   });
