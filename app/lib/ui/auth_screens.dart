@@ -57,51 +57,85 @@ class _LoginScreenState extends State<LoginScreen> {
     return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 
+  String _roleName(String? r) {
+    if (r == null || r.isEmpty) return '';
+    final t = r.replaceAll('_', ' ');
+    return t[0].toUpperCase() + t.substring(1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final shop = widget.controller.licence.payload?.shopName ?? 'TIM-POS';
+    final picked = _picked;
     return Scaffold(
-      body: SafeArea(
-        child: Center(
+      backgroundColor: Brand.background,
+      body: Column(children: [
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.fromLTRB(24, MediaQuery.of(context).padding.top + 24, 24, 26),
+          decoration: const BoxDecoration(color: Brand.teal, borderRadius: BorderRadius.vertical(bottom: Radius.circular(28))),
+          child: Column(children: [
+            const BrandLogo(size: 84),
+            const SizedBox(height: 12),
+            Text(shop, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(picked == null ? 'Who is working?' : 'Hello, ${picked.name}. Enter your PIN.', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+          ]),
+        ),
+        Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 380),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(shop, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Brand.teal, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 20),
-                if (_picked == null) ...[
-                  Text('Who is working?', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  for (final u in _users)
-                    Card(child: ListTile(leading: const Icon(Icons.person_outline), title: Text(u.name), subtitle: Text(u.role ?? ''), onTap: () => setState(() { _picked = u; _pin = ''; _error = null; }))),
-                ] else ...[
-                  Text(_picked!.name, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    for (var i = 0; i < (_pin.length < 4 ? 4 : _pin.length); i++)
-                      Padding(padding: const EdgeInsets.all(6), child: Icon(i < _pin.length ? Icons.circle : Icons.circle_outlined, size: 18, color: Brand.navy)),
-                  ]),
-                  if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Brand.coral))),
-                  const SizedBox(height: 12),
-                  GridView.count(
-                    crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 1.6,
-                    children: [
-                      for (final k in ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'ok'])
-                        k == 'back'
-                            ? OutlinedButton(onPressed: () => setState(() { if (_pin.isNotEmpty) _pin = _pin.substring(0, _pin.length - 1); }), child: const Icon(Icons.backspace_outlined))
-                            : k == 'ok'
-                                ? FilledButton(onPressed: _pin.length >= 4 && !_busy ? _submit : null, child: const Icon(Icons.check))
-                                : OutlinedButton(onPressed: () => _digit(k), child: Text(k, style: const TextStyle(fontSize: 22))),
-                    ],
-                  ),
-                  TextButton(onPressed: () => setState(() { _picked = null; _pin = ''; _error = null; }), child: const Text('Not you?')),
-                ],
-              ]),
+            padding: const EdgeInsets.all(20),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  if (picked == null) ...[
+                    if (_users.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('Loading...', textAlign: TextAlign.center)),
+                    for (final u in _users)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Card(
+                          margin: EdgeInsets.zero,
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            leading: CircleAvatar(
+                              radius: 26,
+                              backgroundColor: Brand.teal.withValues(alpha: 0.15),
+                              child: Text(u.name.isEmpty ? '?' : u.name.substring(0, 1).toUpperCase(), style: const TextStyle(color: Brand.teal, fontSize: 22, fontWeight: FontWeight.w800)),
+                            ),
+                            title: Text(u.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                            subtitle: Text(_roleName(u.role)),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => setState(() { _picked = u; _pin = ''; _error = null; }),
+                          ),
+                        ),
+                      ),
+                  ] else ...[
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      for (var i = 0; i < (_pin.length < 4 ? 4 : _pin.length); i++)
+                        Padding(padding: const EdgeInsets.all(7), child: Icon(i < _pin.length ? Icons.circle : Icons.circle_outlined, size: 22, color: Brand.navy)),
+                    ]),
+                    if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Brand.coral))),
+                    const SizedBox(height: 14),
+                    GridView.count(
+                      crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 1.5,
+                      children: [
+                        for (final k in ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'ok'])
+                          k == 'back'
+                              ? OutlinedButton(onPressed: () => setState(() { if (_pin.isNotEmpty) _pin = _pin.substring(0, _pin.length - 1); }), child: const Icon(Icons.backspace_outlined))
+                              : k == 'ok'
+                                  ? FilledButton(onPressed: _pin.length >= 4 && !_busy ? _submit : null, child: const Icon(Icons.check, size: 28))
+                                  : OutlinedButton(style: OutlinedButton.styleFrom(backgroundColor: Colors.white), onPressed: () => _digit(k), child: Text(k, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600))),
+                      ],
+                    ),
+                    TextButton(onPressed: () => setState(() { _picked = null; _pin = ''; _error = null; }), child: const Text('Not you? Go back')),
+                  ],
+                ]),
+              ),
             ),
           ),
         ),
-      ),
+      ]),
     );
   }
 }

@@ -22,9 +22,22 @@ ThemeData buildTheme(Brightness brightness) {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: brightness == Brightness.light ? Brand.background : null,
-    inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
+    appBarTheme: const AppBarTheme(backgroundColor: Brand.navy, foregroundColor: Colors.white, centerTitle: false),
+    inputDecorationTheme: InputDecorationTheme(
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+      fillColor: brightness == Brightness.light ? Colors.white : null,
+    ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
     ),
   );
+}
+
+/// The TIM-POS logo (a receipt with a T). Used on the loading and sign-in screens.
+class BrandLogo extends StatelessWidget {
+  const BrandLogo({super.key, this.size = 88});
+  final double size;
+  @override
+  Widget build(BuildContext context) => Image.asset('assets/brand/logo.png', width: size, height: size);
 }
