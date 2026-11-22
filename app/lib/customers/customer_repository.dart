@@ -149,7 +149,7 @@ class CustomerRepository {
       }
       final phone = (c.phone ?? '').trim().isEmpty ? null : c.phone!.trim();
       if (phone != null) {
-        final dup = await _get(tx, 'select id, name from customers where phone = ? and deleted_at is null and id is not ?', [phone, c.id]);
+        final dup = await _get(tx, 'select id, name from customers where phone = ? and deleted_at is null and id is not ?', [phone, c.id ?? '']);
         if (dup != null) throw SetupError('duplicate_phone', '${dup['name']} already has that phone number.');
       }
       String? clean(String? v) => (v ?? '').trim().isEmpty ? null : v!.trim();

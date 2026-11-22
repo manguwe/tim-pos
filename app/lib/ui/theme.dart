@@ -11,7 +11,7 @@ class Brand {
   static const background = Color(0xFFF6F8FA);
 }
 
-ThemeData buildTheme(Brightness brightness) {
+ThemeData buildTheme(Brightness brightness, {String? fontFamily}) {
   final scheme = ColorScheme.fromSeed(
     seedColor: Brand.teal,
     brightness: brightness,
@@ -20,6 +20,7 @@ ThemeData buildTheme(Brightness brightness) {
   );
   return ThemeData(
     useMaterial3: true,
+    fontFamily: fontFamily,
     colorScheme: scheme,
     scaffoldBackgroundColor: brightness == Brightness.light ? Brand.background : null,
     appBarTheme: const AppBarTheme(backgroundColor: Brand.navy, foregroundColor: Colors.white, centerTitle: false),

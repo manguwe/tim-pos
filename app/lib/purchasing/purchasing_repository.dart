@@ -216,7 +216,7 @@ class PurchasingRepository {
       await _allow(tx);
       final name = _clean(s.name, 100);
       if (name == null) throw SetupError('name_needed', 'Enter the supplier\'s name.');
-      if (await _get(tx, 'select id from suppliers where deleted_at is null and lower(name) = lower(?) and id is not ?', [name, s.id]) != null) {
+      if (await _get(tx, 'select id from suppliers where deleted_at is null and lower(name) = lower(?) and id is not ?', [name, s.id ?? '']) != null) {
         throw SetupError('duplicate_supplier', 'You already have a supplier with that name.');
       }
       final row = <String, Object?>{'name': name, 'phone': _clean(s.phone, 40), 'address': _clean(s.address, 200), 'terms': _clean(s.terms, 120), 'is_active': s.isActive ? 1 : 0};

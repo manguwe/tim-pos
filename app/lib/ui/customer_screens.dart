@@ -185,7 +185,7 @@ Future<String?> showCustomerForm(BuildContext context, CustomerRepository repo, 
               } on SetupError catch (e) {
                 setS(() => err = e.message);
               } catch (e) {
-                setS(() => err = 'Could not save. Please tell support: $e');
+                setS(() => err = 'Could not save. Please send this to support (More, then Help and contact): $e');
               }
             },
             child: const Text('Save'),

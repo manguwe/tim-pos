@@ -273,7 +273,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     } on SetupError catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
-      setState(() => _error = 'Could not save. Please tell support: $e');
+      setState(() => _error = 'Could not save. Please send this to support (More, then Help and contact): $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

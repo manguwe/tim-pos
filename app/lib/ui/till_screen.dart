@@ -11,7 +11,8 @@ import '../selling/catalog.dart';
 import '../selling/selling.dart' hide Row;
 import 'customer_screens.dart';
 import 'printer_screens.dart';
-import '../photos/photo_store.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
+import '../settings/app_prefs.dart';
 import 'product_pic.dart';
 import 'scan_screen.dart';
 import 'shift_screens.dart';
@@ -37,15 +38,17 @@ class _TillScreenState extends State<TillScreen> {
 
   CartController get c => widget.cart;
 
+  void _addTapped(ProductHit h) {
+    if (c.add(h) && AppPrefs.instance.tapFeedback) HapticFeedback.selectionClick();
+  }
+
   @override
   void initState() {
     super.initState();
     c.addListener(_refresh);
     _loadShift();
     _run('');
-    PhonePrefs.read('till_layout').then((v) {
-      if (mounted && v != null) setState(() => _grid = v != 'list');
-    });
+    _grid = AppPrefs.instance.tillGrid;
   }
 
   /// Ties sales to the cashier's open shift so the cash-up can count them.
@@ -193,7 +196,7 @@ class _TillScreenState extends State<TillScreen> {
               icon: Icon(_grid ? Icons.view_list_outlined : Icons.grid_view_rounded),
               onPressed: () {
                 setState(() => _grid = !_grid);
-                PhonePrefs.write('till_layout', _grid ? 'grid' : 'list');
+                AppPrefs.instance.setTillGrid(_grid);
               },
             ),
           ]),
@@ -219,7 +222,7 @@ class _TillScreenState extends State<TillScreen> {
                       title: Text(h.name),
                       subtitle: Text(h.tracksStock ? (out ? 'Out of stock' : '${_qty(h.onHandMilli)} in stock') : 'Not stock-counted'),
                       trailing: Text(h.canSell ? c.cur.format(h.unitPriceMinor!) : 'No price', style: const TextStyle(fontWeight: FontWeight.w700)),
-                      onTap: () => c.add(h),
+                      onTap: () => _addTapped(h),
                     );
                   },
                 ),
@@ -236,7 +239,7 @@ class _TillScreenState extends State<TillScreen> {
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: h.canSell && !out ? () => c.add(h) : null,
+          onTap: h.canSell && !out ? () => _addTapped(h) : null,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Expanded(
               child: Stack(fit: StackFit.expand, children: [

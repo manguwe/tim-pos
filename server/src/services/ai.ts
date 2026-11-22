@@ -35,6 +35,40 @@ export function anthropicProvider(apiKey: string, model: string, fetchFn: typeof
   };
 }
 
+/** DeepSeek speaks the OpenAI chat format. The same model reads pictures sent as base64 data URLs. */
+export const deepseekProvider = (apiKey: string, model: string, fetchFn: typeof fetch = fetch): AiProvider =>
+  openAiCompatible('https://api.deepseek.com/chat/completions', apiKey, model, fetchFn);
+/** Groq uses the same format. */
+export const groqProvider = (apiKey: string, model: string, fetchFn: typeof fetch = fetch): AiProvider =>
+  openAiCompatible('https://api.groq.com/openai/v1/chat/completions', apiKey, model, fetchFn);
+
+function openAiCompatible(url: string, apiKey: string, model: string, fetchFn: typeof fetch): AiProvider {
+  return {
+    async complete({ system, content, maxTokens }) {
+      const res = await fetchFn(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model, max_tokens: maxTokens, stream: false,
+          messages: [
+            { role: 'system', content: system },
+            {
+              role: 'user',
+              content: content.map((b) => b.type === 'text'
+                ? { type: 'text', text: b.text }
+                : { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b.base64}` } }),
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(45_000),
+      });
+      if (!res.ok) throw new Error(`AI provider answered ${res.status}`);
+      const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      return (j.choices?.[0]?.message?.content ?? '').trim();
+    },
+  };
+}
+
 type Kind = 'suggest' | 'ask';
 const MAX_PHOTO_BYTES = 400 * 1024;
 const month = (ms: number) => new Date(ms).toISOString().slice(0, 7);
@@ -126,6 +160,7 @@ const oneLine = (s: unknown, max = 60) => String(s ?? '').replace(/[\u0000-\u001
 
 /** A compact text summary of the shop. Sales figures are left out unless the asker may see them. */
 export function shopFacts(ctx: Ctx, shopId: string, o: { include_sales: boolean; offset_min: number }): string {
+  const budget = ctx.config.aiFactsChars ?? 40_000;
   const view = shopView(ctx.db, shopId, ctx.now());
   const db = view.db;
   const now = ctx.now();
@@ -144,9 +179,9 @@ export function shopFacts(ctx: Ctx, shopId: string, o: { include_sales: boolean;
        (select coalesce(sum(l.qty_milli), 0) from stock_levels l where l.product_id = p.id) as on_hand
      from products p where p.deleted_at is null and p.is_active = 1 and p.kind <> 'variant_parent' order by p.name limit 400`,
   ).all(cur) as { name: string; brand: string | null; price_minor: number | null; track_stock: number; on_hand: number }[];
-  lines.push(`PRODUCTS (${products.length}; name, brand, selling price, in stock):`);
+  const plines: string[] = [`PRODUCTS (${products.length}; name, brand, selling price, in stock):`];
   for (const p of products) {
-    lines.push(`- ${oneLine(p.name)}${p.brand ? ` (${oneLine(p.brand, 40)})` : ''}: ${p.price_minor == null ? 'no price' : money(p.price_minor, cur)}${p.track_stock ? `, ${qty(p.on_hand)} in stock` : ''}`);
+    plines.push(`- ${oneLine(p.name)}${p.brand ? ` (${oneLine(p.brand, 40)})` : ''}: ${p.price_minor == null ? 'no price' : money(p.price_minor, cur)}${p.track_stock ? `, ${qty(p.on_hand)} in stock` : ''}`);
   }
 
   if (o.include_sales) {
@@ -161,7 +196,8 @@ export function shopFacts(ctx: Ctx, shopId: string, o: { include_sales: boolean;
     lines.push(`OUT OF STOCK: ${R.outOfStock(db).slice(0, 30).map((x) => oneLine(x.name)).join(', ') || 'none'}`);
     lines.push(`CUSTOMERS WHO OWE: ${JSON.stringify(R.receivables(db, 10))}`);
   }
-  return lines.join('\n').slice(0, 40_000);
+  // Sales go first so a small budget cuts the long product list, not the summary.
+  return [...lines, ...plines].join('\n').slice(0, budget);
 }
 
 export async function ask(ctx: Ctx, shopId: string, includeSales: boolean, body: unknown): Promise<Reply> {

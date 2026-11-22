@@ -6,6 +6,8 @@ import '../reports/report_repository.dart';
 import '../selling/catalog.dart' show CurrencyInfo;
 import 'theme.dart';
 import 'ask_screen.dart';
+import 'about_screen.dart';
+import 'app_settings_screen.dart';
 import 'auth_screens.dart';
 import 'price_list_screen.dart';
 import 'setup_screens.dart';
@@ -264,12 +266,14 @@ class _HomeScreenState extends State<HomeScreen> {
         _HomeTile(icon: Icons.assignment_return_outlined, color: Brand.coral, label: 'Returns', hint: 'Customer brings an item back', onTap: () => _open(ReturnScreen(repo: c.returnRepository()!, auth: c.authRepository()!, userId: c.currentUser?.id, printing: c.printService()))),
     ];
     final moreTiles = <Widget>[
+      _HomeTile(icon: Icons.palette_outlined, color: Brand.navy, label: 'App settings', hint: 'Dark mode, text size, font', onTap: () => _open(const AppSettingsScreen())),
+      _HomeTile(icon: Icons.support_agent_outlined, color: Brand.teal, label: 'Help and contact', hint: 'About the developer, WhatsApp, call', onTap: () => _open(const AboutScreen())),
       if (c.can('rate.edit'))
         _HomeTile(icon: Icons.currency_exchange, color: Brand.navy, label: 'Exchange rate', hint: 'Set today\'s rate', onTap: () => showRateDialog(context, c)),
       if (c.can('sale.create') && c.printService() != null)
         _HomeTile(icon: Icons.print_outlined, color: Brand.navy, label: 'Receipt printer', hint: 'Connect your printer', onTap: () => _open(PrinterScreen(printing: c.printService()!))),
       if (c.can('settings.edit') && c.settingsRepository() != null)
-        _HomeTile(icon: Icons.settings_outlined, color: Brand.navy, label: 'Settings', hint: 'Shop name, receipt, options', onTap: () => _open(SettingsScreen(repo: c.settingsRepository()!))),
+        _HomeTile(icon: Icons.settings_outlined, color: Brand.navy, label: 'Shop settings', hint: 'Shop name, receipt, options', onTap: () => _open(SettingsScreen(repo: c.settingsRepository()!))),
       if (c.can('settings.edit') && c.zimraLicensed && c.fiscalRepository() != null)
         _HomeTile(icon: Icons.receipt_long_outlined, color: Brand.navy, label: 'ZIMRA fiscal', hint: 'Tax receipts', onTap: () => _open(FiscalScreen(repo: c.fiscalRepository()!, gateway: c.fiscalGateway, signer: c.fiscalSigner))),
       Card(

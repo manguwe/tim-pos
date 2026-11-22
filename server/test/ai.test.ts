@@ -1,7 +1,7 @@
 import { test, after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { activateDevice, boot, makeShop, type Harness } from './helpers.ts';
-import { anthropicProvider, parseSuggestion, type AiProvider } from '../src/services/ai.ts';
+import { anthropicProvider, deepseekProvider, groqProvider, parseSuggestion, type AiProvider } from '../src/services/ai.ts';
 
 let h: Harness;
 const seen: { system: string; text: string; pictures: number }[] = [];
@@ -137,4 +137,25 @@ test('an owner can ask about the whole shop on the web, only their own', async (
   assert.equal(r.status, 200);
   assert.match(seen[0]!.text, /SALES:/);
   assert.equal((await h.call('GET', '/v1/owner/ai/status', { auth: own })).json.included, true);
+});
+
+test('the DeepSeek provider uses the OpenAI format with the picture as a data URL', async () => {
+  let got: any;
+  const f = (async (url: string, init: any) => {
+    got = { url, headers: init.headers, body: JSON.parse(init.body) };
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: ' hi ' } }] }) };
+  }) as unknown as typeof fetch;
+  const out = await deepseekProvider('sk-ds', 'deepseek-flash', f).complete({ system: 's', maxTokens: 10, content: [{ type: 'jpeg', base64: 'AAAA' }, { type: 'text', text: 't' }] });
+  assert.equal(out, 'hi');
+  assert.equal(got.url, 'https://api.deepseek.com/chat/completions');
+  assert.equal(got.headers.authorization, 'Bearer sk-ds');
+  assert.equal(got.body.messages[0].role, 'system');
+  assert.equal(got.body.messages[1].content[0].image_url.url, 'data:image/jpeg;base64,AAAA');
+});
+
+test('the Groq provider calls Groq with the same format', async () => {
+  let url = '';
+  const f = (async (u: string) => { url = u; return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'x' } }] }) }; }) as unknown as typeof fetch;
+  assert.equal(await groqProvider('k', 'm', f).complete({ system: 's', maxTokens: 5, content: [{ type: 'text', text: 't' }] }), 'x');
+  assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions');
 });

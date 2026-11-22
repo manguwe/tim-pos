@@ -184,7 +184,7 @@ Future<String?> showSupplierDialog(BuildContext context, PurchasingRepository re
               } on SetupError catch (e) {
                 setS(() => err = e.message);
               } catch (e) {
-                setS(() => err = 'Could not save. Please tell support: $e');
+                setS(() => err = 'Could not save. Please send this to support (More, then Help and contact): $e');
               }
             },
             child: const Text('Save'),
@@ -360,7 +360,7 @@ Future<String?> showPaySupplierDialog(BuildContext context, PurchasingRepository
                 } on SetupError catch (e) {
                   setS(() => err = e.message);
                 } catch (e) {
-                  setS(() => err = 'Could not save. Please tell support: $e');
+                  setS(() => err = 'Could not save. Please send this to support (More, then Help and contact): $e');
                 }
               },
               child: const Text('Pay'),
@@ -650,7 +650,7 @@ class _OrderFormState extends State<OrderFormScreen> {
     } on SetupError catch (e) {
       if (mounted) setState(() => _err = e.message);
     } catch (e) {
-      if (mounted) setState(() => _err = 'Could not save. Please tell support: $e');
+      if (mounted) setState(() => _err = 'Could not save. Please send this to support (More, then Help and contact): $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -718,7 +718,7 @@ class _PurchaseOrderState extends State<PurchaseOrderScreen> {
     } on SetupError catch (e) {
       _note = e.message;
     } catch (e) {
-      _note = 'Could not do that. Please tell support: $e';
+      _note = 'Could not do that. Please send this to support (More, then Help and contact): $e';
     }
     await _load();
   }
@@ -830,7 +830,7 @@ class _ReceiveGoodsState extends State<ReceiveGoodsScreen> {
     } on SetupError catch (e) {
       if (mounted) setState(() => _err = e.message);
     } catch (e) {
-      if (mounted) setState(() => _err = 'Could not save. Please tell support: $e');
+      if (mounted) setState(() => _err = 'Could not save. Please send this to support (More, then Help and contact): $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -907,7 +907,7 @@ class _SupplierReturnState extends State<SupplierReturnScreen> {
     } on SetupError catch (e) {
       if (mounted) setState(() => _err = e.message);
     } catch (e) {
-      if (mounted) setState(() => _err = 'Could not save. Please tell support: $e');
+      if (mounted) setState(() => _err = 'Could not save. Please send this to support (More, then Help and contact): $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -22,6 +22,10 @@ export interface Config {
   /** Anthropic key for the AI add-on. Without it the feature stays off. */
   aiApiKey?: string | null;
   aiModel?: string;
+  /** 'deepseek' or 'anthropic'. Chosen by which key is set; DeepSeek wins if both are. */
+  aiProvider?: 'deepseek' | 'groq' | 'anthropic';
+  /** Most characters of shop facts sent with a question. Small on free plans with tight token limits. */
+  aiFactsChars?: number;
   /** Requests per shop per month, for each of the two AI features. */
   aiMonthlyLimit?: number;
 }
@@ -89,8 +93,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     maxBodyBytes: 8 * 1024 * 1024,
     log: env.LOG !== '0',
     dashboardDir: dashboardDir(env),
-    aiApiKey: env.ANTHROPIC_API_KEY || null,
-    aiModel: env.AI_MODEL || 'claude-haiku-5-5',
+    aiProvider: env.GROQ_API_KEY ? 'groq' : env.DEEPSEEK_API_KEY ? 'deepseek' : 'anthropic',
+    aiApiKey: env.GROQ_API_KEY || env.DEEPSEEK_API_KEY || env.ANTHROPIC_API_KEY || null,
+    aiModel: env.AI_MODEL || (env.GROQ_API_KEY ? 'qwen/qwen3.8-27b' : env.DEEPSEEK_API_KEY ? 'deepseek-flash' : 'claude-haiku-5-5'),
+    aiFactsChars: Number(env.AI_FACTS_CHARS) || (env.GROQ_API_KEY ? 12_000 : 40_000),
     aiMonthlyLimit: Number(env.AI_MONTHLY_LIMIT ?? 300) || 300,
   };
 }

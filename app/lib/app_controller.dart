@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'settings/app_prefs.dart';
 import 'ai/ai_service.dart';
 import 'auth/auth_repository.dart';
 import 'barcodes/barcode_repository.dart';
@@ -173,7 +174,7 @@ class AppController extends ChangeNotifier {
       // Product pictures go after the sales. They must never break a sync, so every problem here is ignored.
       try {
         final db = database;
-        if (db != null) await PhotoSync(api: api, db: db.sql).run();
+        if (db != null && AppPrefs.instance.sendPictures) await PhotoSync(api: api, db: db.sql).run();
       } catch (_) {}
       if (report.rejected.isNotEmpty) {
         message = '${report.rejected.length} change(s) were refused by the server. They are kept on this phone.';

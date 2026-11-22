@@ -1,7 +1,7 @@
 import type { Config } from './config.ts';
 import type { Db } from './db.ts';
 import { FailureLimiter } from './limiter.ts';
-import { anthropicProvider, type AiProvider } from './services/ai.ts';
+import { anthropicProvider, deepseekProvider, groqProvider, type AiProvider } from './services/ai.ts';
 
 export interface Ctx {
   db: Db;
@@ -27,6 +27,9 @@ export function makeCtx(db: Db, config: Config, now: () => number = Date.now): C
     loginPairLimiter: new FailureLimiter(5, 15 * 60_000, now),
     loginIpLimiter: new FailureLimiter(20, 15 * 60_000, now),
     loginEmailLimiter: new FailureLimiter(100, 60 * 60_000, now),
-    ai: config.aiApiKey ? anthropicProvider(config.aiApiKey, config.aiModel ?? 'claude-haiku-5-5') : null,
+    ai: !config.aiApiKey ? null
+      : config.aiProvider === 'groq' ? groqProvider(config.aiApiKey, config.aiModel ?? 'qwen/qwen3.8-27b')
+      : config.aiProvider === 'deepseek' ? deepseekProvider(config.aiApiKey, config.aiModel ?? 'deepseek-flash')
+      : anthropicProvider(config.aiApiKey, config.aiModel ?? 'claude-haiku-5-5'),
   };
 }
