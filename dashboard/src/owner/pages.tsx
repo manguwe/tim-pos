@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ApiError } from '../api.ts';
 import { fmtDate, fmtTime, money, qty, relative } from '../format.ts';
 import { Link } from '../router.tsx';
 import { Button, Empty, ErrorBox, Field, Loading, Page, errorText, useAsync, useToast } from '../ui.tsx';
 import { PERIODS, localIso, offsetMinutes, rangeFor, type PeriodId, type Range } from './period.ts';
 import {
-  ownerApi, setOwnerSession, type CashUpRow, type DayRow, type ExpiringBatch, type Meta, type OutOfStock, type OwnerSession, type ProductRow,
+  ownerApi, ownerPhoto, setOwnerSession, type CatalogueRow, type CashUpRow, type DayRow, type ExpiringBatch, type Meta, type OutOfStock, type OwnerSession, type ProductRow,
   type Receivables, type SalesSummary, type StockValue, type TakingRow,
 } from './api.ts';
 import { createContext, useContext } from 'react';
@@ -172,6 +172,63 @@ export function Products() {
   );
 }
 
+// ---- Product list with pictures ----
+
+const TILE_COLOURS = ['#0B8577', '#12263F', '#F08A24', '#2FB86E', '#E5484D', '#6C5CE7', '#0984E3'];
+function initials(name: string): string {
+  const w = name.trim().split(/\s+/).filter(Boolean);
+  if (w.length === 0) return '?';
+  return (w.length === 1 ? w[0]!.slice(0, 2) : w[0]!.slice(0, 1) + w[1]!.slice(0, 1)).toUpperCase();
+}
+
+function ProductPhoto({ name, imageRef }: { name: string; imageRef: string | null }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    setSrc(null);
+    if (imageRef) void ownerPhoto(imageRef).then((s) => { if (live) setSrc(s); });
+    return () => { live = false; };
+  }, [imageRef]);
+  if (src) return <img className="pimg" src={src} alt={name} loading="lazy" />;
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const colour = TILE_COLOURS[h % TILE_COLOURS.length]!;
+  return <div className="pimg pimg-fallback" style={{ color: colour, background: `${colour}29` }} aria-hidden="true">{initials(name)}</div>;
+}
+
+export function Catalogue() {
+  const [q, setQ] = useState('');
+  const p = useReport<{ products: CatalogueRow[]; base_currency: string }>('catalogue', {}, false);
+  const rows = (p.data?.products ?? []).filter((x) => `${x.name} ${x.brand ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <Page title="Products">
+      <div className="toolbar">
+        <input type="search" aria-label="Find a product" placeholder="Find a product" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      {p.error && <ErrorBox error={p.error} retry={p.reload} />}
+      {!p.data && !p.error && <Loading />}
+      {p.data && p.data.products.length === 0 && <Empty>No products have reached the server yet. They appear after a shop phone syncs.</Empty>}
+      {p.data && p.data.products.length > 0 && rows.length === 0 && <Empty>No product matches that.</Empty>}
+      <div className="pgrid">
+        {rows.map((x) => {
+          const out = x.track_stock === 1 && x.on_hand_milli <= 0;
+          return (
+            <div key={x.id} className={`card pcard${x.is_active === 0 ? ' pcard-off' : ''}`}>
+              <ProductPhoto name={x.name} imageRef={x.image_ref} />
+              <div className="pname">{x.name}</div>
+              {x.brand && <div className="muted small">{x.brand}</div>}
+              <div className="pprice">{x.price_minor === null ? 'No price' : money(x.price_minor, p.data!.base_currency)}</div>
+              <div className={`small${out ? ' bad-text' : ' muted'}`}>{x.track_stock !== 1 ? 'Not counted' : out ? 'Finished' : `${qty(x.on_hand_milli)} in stock`}</div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="muted small">Pictures appear after the phone that took them has synced.</p>
+      <Freshness meta={p.data} />
+    </Page>
+  );
+}
+
 // ---- Stock ----
 
 export function Stock() {
@@ -307,6 +364,64 @@ export function OwnerAccount({ session }: { session: OwnerSession }) {
         <Button type="submit" kind="primary" busy={busy}>Change password</Button>
       </form>
       <p className="muted small"><Link to="/">Vendor sign-in</Link> is a different login for the TIM-POS team.</p>
+    </Page>
+  );
+}
+
+// ---- Ask the assistant ----
+
+interface AiStatus { available: boolean; included: boolean; limit: number; used_suggest: number; used_ask: number }
+const EXAMPLES = ['How did we do today?', 'What are my best sellers this month?', 'What do I need to restock?', 'Who owes me money?'];
+
+export function Ask() {
+  const st = useAsync(() => ownerApi<AiStatus>('GET', '/ai/status'), []);
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [chat, setChat] = useState<{ q: string; a?: string; err?: string }[]>([]);
+  async function send(text: string) {
+    const question = text.trim();
+    if (!question || busy) return;
+    setBusy(true);
+    setQ('');
+    setChat((c) => [...c, { q: question }]);
+    try {
+      const r = await ownerApi<{ answer: string }>('POST', '/ai/ask', { question, offset_min: offsetMinutes() });
+      setChat((c) => c.map((x, i) => (i === c.length - 1 ? { ...x, a: r.answer } : x)));
+    } catch (e) {
+      setChat((c) => c.map((x, i) => (i === c.length - 1 ? { ...x, err: errorText(e) } : x)));
+    } finally {
+      setBusy(false);
+      st.reload();
+    }
+  }
+  const s = st.data;
+  return (
+    <Page title="Ask">
+      {st.error && <ErrorBox error={st.error} retry={st.reload} />}
+      {!s && !st.error && <Loading />}
+      {s && !s.available && <Empty>The assistant is not switched on for this server yet.</Empty>}
+      {s && s.available && !s.included && <Empty>The assistant is not part of your plan. Ask your supplier to add it.</Empty>}
+      {s && s.available && s.included && (
+        <>
+          <p className="muted">Ask about your shop in plain words. The assistant only knows what your phones have synced, and it can be wrong, so check important numbers on the other pages.</p>
+          <div className="toolbar">
+            {EXAMPLES.map((x) => <button key={x} className="btn" disabled={busy} onClick={() => send(x)}>{x}</button>)}
+          </div>
+          {chat.map((m, i) => (
+            <div key={i} className="card" style={{ marginBottom: 12 }}>
+              <div><strong>{m.q}</strong></div>
+              {m.a === undefined && !m.err && <div className="muted">Thinking...</div>}
+              {m.a !== undefined && <div className="pre" style={{ marginTop: 6 }}>{m.a}</div>}
+              {m.err && <div className="bad-text" style={{ marginTop: 6 }}>{m.err}</div>}
+            </div>
+          ))}
+          <form onSubmit={(e) => { e.preventDefault(); void send(q); }} style={{ display: 'flex', gap: 8 }}>
+            <input aria-label="Your question" placeholder="Type your question" maxLength={500} value={q} onChange={(e) => setQ(e.target.value)} />
+            <Button type="submit" kind="primary" disabled={busy || !q.trim()}>Ask</Button>
+          </form>
+          <p className="muted small">Used this month: {s.used_ask} of {s.limit} questions.</p>
+        </>
+      )}
     </Page>
   );
 }

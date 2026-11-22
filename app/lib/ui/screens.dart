@@ -5,7 +5,9 @@ import '../licence/licence.dart';
 import '../reports/report_repository.dart';
 import '../selling/catalog.dart' show CurrencyInfo;
 import 'theme.dart';
+import 'ask_screen.dart';
 import 'auth_screens.dart';
+import 'price_list_screen.dart';
 import 'setup_screens.dart';
 import 'customer_screens.dart';
 import 'printer_screens.dart';
@@ -239,6 +241,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final productTiles = <Widget>[
       if (c.can('product.edit') || c.can('stock.receive'))
         _HomeTile(icon: Icons.inventory_2_outlined, color: Brand.teal, label: 'Products', hint: 'Add items, prices and stock', onTap: () => _open(ProductsScreen(controller: c))),
+      if (c.can('product.edit') && c.setupRepository() != null)
+        _HomeTile(icon: Icons.sell_outlined, color: Brand.green, label: 'Price list', hint: 'See and change all your prices', onTap: () => _open(PriceListScreen(controller: c))),
       if (c.can('stock.adjust') && c.stockRepository() != null)
         _HomeTile(icon: Icons.fact_check_outlined, color: Brand.orange, label: 'Stock count', hint: 'Count the shelf, fix stock', onTap: () => _open(StockScreen(repo: c.stockRepository()!, barcodes: c.barcodeRepository()))),
     ];
@@ -251,6 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _HomeTile(icon: Icons.badge_outlined, color: Brand.teal, label: 'Staff', hint: 'Add people and PINs', onTap: () => _open(StaffScreen(controller: c))),
     ];
     final reportTiles = <Widget>[
+      _HomeTile(icon: Icons.auto_awesome_outlined, color: Brand.teal, label: 'Ask', hint: 'Prices, stock, how we did (needs internet)', onTap: () => _open(AskScreen(ai: c.ai, includeSales: c.can('report.view')))),
       if (c.can('report.view') && c.reportRepository() != null)
         _HomeTile(icon: Icons.bar_chart_outlined, color: Brand.green, label: 'Sales reports', hint: 'Sales, profit, stock', onTap: () => _open(ReportScreen(repo: c.reportRepository()!))),
       if (c.can('shift.manage') && c.shiftRepository() != null)

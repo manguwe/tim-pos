@@ -2,7 +2,7 @@ import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import { chmodSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export type Param = string | number | bigint | null;
+export type Param = string | number | bigint | null | Uint8Array;
 
 /**
  * Thin wrapper over node:sqlite. All calls are synchronous, so a handler that does its database

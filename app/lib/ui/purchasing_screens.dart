@@ -183,6 +183,8 @@ Future<String?> showSupplierDialog(BuildContext context, PurchasingRepository re
                 if (ctx.mounted) Navigator.pop(ctx, id);
               } on SetupError catch (e) {
                 setS(() => err = e.message);
+              } catch (e) {
+                setS(() => err = 'Could not save. Please tell support: $e');
               }
             },
             child: const Text('Save'),
@@ -357,6 +359,8 @@ Future<String?> showPaySupplierDialog(BuildContext context, PurchasingRepository
                   if (ctx.mounted) Navigator.pop(ctx, 'Paid ${money.fmt(r.appliedMinor, r.debtCurrency)}. $left${r.cashOutRecorded ? ' Recorded as cash out on your shift.' : ''}');
                 } on SetupError catch (e) {
                   setS(() => err = e.message);
+                } catch (e) {
+                  setS(() => err = 'Could not save. Please tell support: $e');
                 }
               },
               child: const Text('Pay'),
@@ -645,6 +649,8 @@ class _OrderFormState extends State<OrderFormScreen> {
       if (mounted) Navigator.pop(context, id);
     } on SetupError catch (e) {
       if (mounted) setState(() => _err = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _err = 'Could not save. Please tell support: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -711,6 +717,8 @@ class _PurchaseOrderState extends State<PurchaseOrderScreen> {
       _note = null;
     } on SetupError catch (e) {
       _note = e.message;
+    } catch (e) {
+      _note = 'Could not do that. Please tell support: $e';
     }
     await _load();
   }
@@ -821,6 +829,8 @@ class _ReceiveGoodsState extends State<ReceiveGoodsScreen> {
       }
     } on SetupError catch (e) {
       if (mounted) setState(() => _err = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _err = 'Could not save. Please tell support: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -896,6 +906,8 @@ class _SupplierReturnState extends State<SupplierReturnScreen> {
       if (mounted) Navigator.pop(context, true);
     } on SetupError catch (e) {
       if (mounted) setState(() => _err = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _err = 'Could not save. Please tell support: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

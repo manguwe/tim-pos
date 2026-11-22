@@ -35,4 +35,18 @@ for perm, extra in [('android.permission.BLUETOOTH', ' android:maxSdkVersion="30
 if 'usesCleartextTraffic="true"' in m:
     sys.exit('cleartext traffic is on; the server must use HTTPS')
 manifest.write_text(m)
+
+# App icon and name. Replaces the default Flutter icon in every size and uses the name TIM-POS under the icon.
+res = root / 'app' / 'src' / 'main' / 'res'
+icons = pathlib.Path('android_setup') / 'icons'
+for d in sorted(icons.glob('mipmap-*')):
+    target = res / d.name
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copy(d / 'ic_launcher.png', target / 'ic_launcher.png')
+# an adaptive icon file, if the template made one, would hide ours on newer phones
+for stale in res.glob('mipmap-anydpi*/ic_launcher*.xml'):
+    stale.unlink()
+m = manifest.read_text()
+m = re.sub(r'android:label="[^"]*"', 'android:label="TIM-POS"', m, count=1)
+manifest.write_text(m)
 print('android settings applied')

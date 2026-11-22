@@ -184,6 +184,8 @@ Future<String?> showCustomerForm(BuildContext context, CustomerRepository repo, 
                 if (ctx.mounted) Navigator.pop(ctx, saved);
               } on SetupError catch (e) {
                 setS(() => err = e.message);
+              } catch (e) {
+                setS(() => err = 'Could not save. Please tell support: $e');
               }
             },
             child: const Text('Save'),

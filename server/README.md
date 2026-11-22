@@ -8,7 +8,7 @@ Built and tested: shop and licence management, device activation, signed offline
 
 The vendor web dashboard (in `../dashboard`) is built and served by this server at `/dashboard/`.
 
-Also built: shop invoices and payments, shop-owner logins with sales reports, ZIMRA fiscal logic (without signing and QR).
+Also built: product pictures (`POST /v1/photos` and `GET /v1/photos/:name`, phone sign-in, small JPEGs only, kept per shop), shop invoices and payments, shop-owner logins with sales reports, ZIMRA fiscal logic (without signing and QR).
 
 Not built yet: a PostgreSQL version, ZIMRA signing/QR and the secure gateway client, and loyalty.
 
@@ -122,3 +122,7 @@ Phones sync their rows into `records`. For a report, the server loads that shop'
 `src/reports/reports.ts`, `money.ts` and `shop_schema.sql` are copies of `tools/src` and `app/assets/sql/local_schema.sql`. After changing those, run `scripts/copy-shop-schema.sh` from `server/`. A test fails if the copies drift.
 
 This is the simple, correct first version. A shop with years of heavy trading will want typed report tables in PostgreSQL; that comes with the PostgreSQL port. Reports are only as fresh as the phones' last sync, and the pages say so.
+
+
+## AI assistant
+Optional, online only. See `../AI-SETUP.md`. Env: `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_MONTHLY_LIMIT`; licence feature `ai`; routes `/v1/ai/*` (phone) and `/v1/owner/ai/*` (web).

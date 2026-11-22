@@ -71,7 +71,13 @@ class ProductInput {
     this.trackStock = true,
     this.allowNegativeStock = false,
     this.isActive = true,
+    this.brand,
+    this.imageRef,
   });
+  /// Brand (for example the name on the packet). Null leaves it as it is; empty clears it.
+  final String? brand;
+  /// File name of the product picture. Null leaves the picture as it is.
+  final String? imageRef;
   final String? id;
   final String name;
   final String? sku;
@@ -216,6 +222,8 @@ class SetupRepository {
         'name': name, 'sku': (p.sku ?? '').trim().isEmpty ? null : p.sku!.trim(), 'base_unit_id': unit, 'tax_class_id': p.taxClassId,
         'kind': 'simple', 'track_stock': p.trackStock ? 1 : 0, 'allow_negative_stock': p.allowNegativeStock ? 1 : 0,
         'is_active': p.isActive ? 1 : 0, 'cost_minor': p.costMinor, 'cost_currency': base,
+        if (p.brand != null) 'brand': p.brand!.trim().isEmpty ? null : p.brand!.trim(),
+        if (p.imageRef != null) 'image_ref': p.imageRef,
       };
       String id;
       if (p.id != null) {
@@ -281,13 +289,45 @@ class SetupRepository {
   Future<List<Map<String, Object?>>> listProducts(String query) async {
     final like = '%${query.trim().replaceAll('%', '').replaceAll('_', '')}%';
     return db.query(
-      'select p.id, p.name, p.sku, p.cost_minor, p.track_stock, p.is_active, '
+      'select p.id, p.name, p.sku, p.brand, p.image_ref, p.cost_minor, p.track_stock, p.is_active, '
+      '(select pp.price_minor from product_prices pp where pp.product_id = p.id and pp.deleted_at is null and pp.tier_id is (select id from price_tiers where is_default = 1 and deleted_at is null) '
+      'and pp.currency = (select base_currency from shops where deleted_at is null limit 1) order by pp.effective_from desc, pp.created_at desc limit 1) as price_minor, '
       '(select coalesce(sum(qty_milli), 0) from stock_levels l where l.product_id = p.id) as on_hand_milli, '
       "(select group_concat(barcode) from product_barcodes b where b.product_id = p.id and b.deleted_at is null) as barcodes "
       'from products p where p.deleted_at is null and (p.name like ? or p.sku like ?) order by p.name limit 200',
       [like, like],
     );
   }
+
+  /// Changes the selling price of one product. The old price stays in the history.
+  Future<void> setPrice(String productId, int priceMinor) async {
+    if (priceMinor < 0) throw SetupError('bad_amount', 'The price must be zero or more.');
+    final now = _clock();
+    await db.transaction((tx) async {
+      final base = (await _get(tx, 'select base_currency from shops where deleted_at is null limit 1'))?['base_currency'] as String?;
+      if (base == null) throw SetupError('shop_not_set_up', 'Set up the shop first.');
+      if (await _get(tx, 'select 1 as x from products where id = ? and deleted_at is null', [productId]) == null) throw SetupError('not_found', 'That product was not found.');
+      final tier = (await _get(tx, 'select id from price_tiers where is_default = 1 and deleted_at is null'))?['id'];
+      final last = await _get(
+        tx,
+        'select price_minor from product_prices where product_id = ? and currency = ? and tier_id is ? and deleted_at is null order by effective_from desc, created_at desc limit 1',
+        [productId, base, tier],
+      );
+      if (last == null || _i(last['price_minor']) != priceMinor) {
+        await _add(tx, 'product_prices', {'product_id': productId, 'tier_id': tier, 'currency': base, 'price_minor': priceMinor, 'effective_from': now}, now, versioned: true);
+      }
+    });
+  }
+
+  /// The last few selling prices of a product, newest first, for the price list.
+  Future<List<({int priceMinor, int since})>> priceHistory(String productId) async => [
+        for (final r in await db.query(
+          'select price_minor, effective_from from product_prices where product_id = ? and deleted_at is null and tier_id is (select id from price_tiers where is_default = 1 and deleted_at is null) '
+          'and currency = (select base_currency from shops where deleted_at is null limit 1) order by effective_from desc, created_at desc limit 6',
+          [productId],
+        ))
+          (priceMinor: _i(r['price_minor']), since: _i(r['effective_from'])),
+      ];
 
   Future<List<Map<String, Object?>>> taxClasses() => db.query('select id, name, rate_bp from tax_classes where deleted_at is null order by name');
 }

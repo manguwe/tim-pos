@@ -64,3 +64,22 @@ export interface OutOfStock { product_id: string; name: string; qty_milli: numbe
 export interface ExpiringBatch { product_id: string; name: string; batch_code: string | null; expiry_date: string; qty_milli: number; expired: boolean }
 export interface Receivables { by_currency: { currency: string; owed_minor: number; customers: number }[]; debtors: { customer_id: string; name: string; phone: string | null; currency: string; owed_minor: number }[] }
 export interface CashUpRow { shift_id: string; user: string | null; opened_at: number; closed_at: number; currencies: { currency: string; expected_minor: number; counted_minor: number; difference_minor: number }[] }
+
+// ---- products with pictures ----
+export interface CatalogueRow {
+  id: string; name: string; brand: string | null; image_ref: string | null; is_active: number | null; track_stock: number | null;
+  price_minor: number | null; on_hand_milli: number;
+}
+
+const photoCache = new Map<string, Promise<string | null>>();
+/** A product picture as a data: address. The server needs the owner's sign-in for it, so an <img src> cannot fetch it directly. */
+export function ownerPhoto(name: string): Promise<string | null> {
+  let p = photoCache.get(name);
+  if (!p) {
+    p = ownerApi<{ data: string }>('GET', `/photos/${encodeURIComponent(name)}`)
+      .then((r) => `data:image/jpeg;base64,${r.data}`)
+      .catch(() => { photoCache.delete(name); return null; });
+    photoCache.set(name, p);
+  }
+  return p;
+}

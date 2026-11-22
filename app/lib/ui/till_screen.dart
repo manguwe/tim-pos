@@ -11,6 +11,8 @@ import '../selling/catalog.dart';
 import '../selling/selling.dart' hide Row;
 import 'customer_screens.dart';
 import 'printer_screens.dart';
+import '../photos/photo_store.dart';
+import 'product_pic.dart';
 import 'scan_screen.dart';
 import 'shift_screens.dart';
 import 'theme.dart';
@@ -31,6 +33,7 @@ class _TillScreenState extends State<TillScreen> {
   final _search = TextEditingController();
   List<ProductHit> _hits = [];
   int _searchToken = 0;
+  bool _grid = true;
 
   CartController get c => widget.cart;
 
@@ -40,6 +43,9 @@ class _TillScreenState extends State<TillScreen> {
     c.addListener(_refresh);
     _loadShift();
     _run('');
+    PhonePrefs.read('till_layout').then((v) {
+      if (mounted && v != null) setState(() => _grid = v != 'list');
+    });
   }
 
   /// Ties sales to the cashier's open shift so the cash-up can count them.
@@ -168,21 +174,40 @@ class _TillScreenState extends State<TillScreen> {
   Widget _catalogPane() => Column(children: [
         Padding(
           padding: const EdgeInsets.all(10),
-          child: TextField(
-            controller: _search,
-            autocorrect: false,
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: 'Search or scan barcode',
-              suffixIcon: IconButton(tooltip: 'Scan with the camera', icon: const Icon(Icons.qr_code_scanner), onPressed: _openCamera),
+          child: Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _search,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Search or scan barcode',
+                  suffixIcon: IconButton(tooltip: 'Scan with the camera', icon: const Icon(Icons.qr_code_scanner), onPressed: _openCamera),
+                ),
+                onChanged: _run,
+                onSubmitted: _submit,
+              ),
             ),
-            onChanged: _run,
-            onSubmitted: _submit,
-          ),
+            IconButton(
+              tooltip: _grid ? 'Show as a list' : 'Show pictures',
+              icon: Icon(_grid ? Icons.view_list_outlined : Icons.grid_view_rounded),
+              onPressed: () {
+                setState(() => _grid = !_grid);
+                PhonePrefs.write('till_layout', _grid ? 'grid' : 'list');
+              },
+            ),
+          ]),
         ),
         Expanded(
           child: _hits.isEmpty
               ? const Center(child: Text('No products found'))
+              : _grid
+              ? GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 160, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 0.78),
+                  itemCount: _hits.length,
+                  itemBuilder: (_, i) => _tile(_hits[i]),
+                )
               : ListView.separated(
                   itemCount: _hits.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
@@ -200,6 +225,47 @@ class _TillScreenState extends State<TillScreen> {
                 ),
         ),
       ]);
+
+  /// One product as a picture tile: the photo, the name, the price, and a note when it is nearly gone.
+  Widget _tile(ProductHit h) {
+    final out = h.tracksStock && !h.allowNegative && h.onHandMilli <= 0;
+    final low = h.tracksStock && !out && h.onHandMilli <= 5000;
+    return Opacity(
+      opacity: h.canSell && !out ? 1 : 0.45,
+      child: Card(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: h.canSell && !out ? () => c.add(h) : null,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(
+              child: Stack(fit: StackFit.expand, children: [
+                LayoutBuilder(builder: (context, box) => Center(child: ProductPic(name: h.name, imageRef: h.imageRef, size: box.maxWidth, radius: 0))),
+                if (out || low)
+                  Positioned(
+                    left: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(color: out ? Brand.coral : Brand.amber, borderRadius: BorderRadius.circular(10)),
+                      child: Text(out ? 'Finished' : '${_qty(h.onHandMilli)} left', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(h.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(h.canSell ? c.cur.format(h.unitPriceMinor!) : 'No price', style: const TextStyle(fontWeight: FontWeight.w800, color: Brand.teal)),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
 
   String _qty(int milli) => milli % 1000 == 0 ? '${milli ~/ 1000}' : (milli / 1000).toStringAsFixed(3);
 

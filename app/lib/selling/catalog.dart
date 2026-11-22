@@ -13,6 +13,8 @@ class ProductHit {
     required this.onHandMilli,
     required this.tracksStock,
     required this.allowNegative,
+    this.imageRef,
+    this.brand,
   });
   final String id;
   final String name;
@@ -25,6 +27,8 @@ class ProductHit {
   final int onHandMilli;
   final bool tracksStock;
   final bool allowNegative;
+  final String? imageRef;
+  final String? brand;
 
   bool get canSell => unitPriceMinor != null;
 }
@@ -89,6 +93,8 @@ class CatalogRepository {
         onHandMilli: stock.toInt(),
         tracksStock: p['track_stock'] == 1,
         allowNegative: p['allow_negative_stock'] == 1,
+        imageRef: p['image_ref'] as String?,
+        brand: p['brand'] as String?,
       ));
     }
     return out;

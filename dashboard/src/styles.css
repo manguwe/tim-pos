@@ -202,3 +202,12 @@ tr.dim td { color: var(--muted); }
 .center-text { text-align: center; }
 .fresh { margin-top: 24px; }
 .filters select, .filters input { max-width: 200px; }
+
+/* product pictures (owner) */
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
+.pcard { padding: 10px; display: grid; gap: 4px; align-content: start; }
+.pcard-off { opacity: 0.55; }
+.pimg { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; display: block; }
+.pimg-fallback { display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.8rem; }
+.pname { font-weight: 600; line-height: 1.25; }
+.pprice { font-weight: 800; color: var(--teal); }

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'ai/ai_service.dart';
 import 'auth/auth_repository.dart';
 import 'barcodes/barcode_repository.dart';
 import 'config.dart';
@@ -20,6 +21,7 @@ import 'fiscal/fiscal_repository.dart';
 import 'settings/settings_repository.dart';
 import 'shifts/shift_repository.dart';
 import 'stock/stock_repository.dart';
+import 'photos/photo_sync.dart';
 import 'printing/print_service.dart';
 import 'printing/printer_transport.dart';
 import 'licence/licence.dart';
@@ -44,6 +46,9 @@ class AppController extends ChangeNotifier {
   final PrinterTransport printerTransport;
   late final LicenceGuard guard;
   late final ApiClient api;
+
+  /// The online-only assistant (name from a photo, questions about the shop).
+  late final AiService ai = AiService(api);
   LocalDatabase? database;
   SyncEngine? engine;
   Timer? _ticker;
@@ -165,6 +170,11 @@ class AppController extends ChangeNotifier {
       }
       await guard.acceptToken(r.json['licence_token'] as String);
       final report = await e.sync();
+      // Product pictures go after the sales. They must never break a sync, so every problem here is ignored.
+      try {
+        final db = database;
+        if (db != null) await PhotoSync(api: api, db: db.sql).run();
+      } catch (_) {}
       if (report.rejected.isNotEmpty) {
         message = '${report.rejected.length} change(s) were refused by the server. They are kept on this phone.';
       }

@@ -377,6 +377,10 @@ try {
   await page.getByRole('link', { name: 'Best sellers' }).click();
   await page.getByRole('cell', { name: 'Radio' }).waitFor();
   await page.getByRole('cell', { name: 'Bread' }).waitFor();
+  await page.getByRole('link', { name: 'Products', exact: true }).click();
+  await page.locator('.pcard', { hasText: 'Radio' }).waitFor();
+  await page.locator('.pcard', { hasText: 'Bread' }).waitFor();
+  await page.screenshot({ path: join(shots, '6b-owner-products.png'), fullPage: true });
   await page.getByRole('link', { name: 'Stock', exact: true }).click();
   await page.getByText('Stock value at cost').waitFor();
   await page.getByRole('link', { name: 'Customers who owe' }).click();

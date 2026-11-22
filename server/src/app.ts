@@ -6,6 +6,8 @@ import * as sync from './services/sync.ts';
 import * as billing from './services/billing.ts';
 import * as vendor from './services/vendor.ts';
 import * as owners from './services/owners.ts';
+import * as photos from './services/photos.ts';
+import * as ai from './services/ai.ts';
 import { serveDashboard } from './static.ts';
 
 type Auth = 'none' | 'device' | 'vendor' | 'owner';
@@ -49,6 +51,11 @@ route('POST', '/v1/activate', 'none', (req, ctx) => {
 route('POST', '/v1/licence/refresh', 'device', (_req, ctx, w) => ok(licensing.refreshToken(ctx, dev(w))));
 route('POST', '/v1/sync/push', 'device', (req, ctx, w) => ok(sync.push(ctx, dev(w), req.body)));
 route('GET', '/v1/sync/pull', 'device', (req, ctx, w) => ok(sync.pull(ctx, dev(w), req.query)));
+route('POST', '/v1/photos', 'device', (req, ctx, w) => photos.put(ctx, dev(w), req.body));
+route('GET', '/v1/ai/status', 'device', (_req, ctx, w) => ai.status(ctx, dev(w).tenant.id));
+route('POST', '/v1/ai/suggest-product', 'device', (req, ctx, w) => ai.suggestProduct(ctx, dev(w), req.body));
+route('POST', '/v1/ai/ask', 'device', (req, ctx, w) => ai.ask(ctx, dev(w).tenant.id, (req.body as { include_sales?: unknown } | null)?.include_sales === true, req.body));
+route('GET', '/v1/photos/:name', 'device', (req, ctx, w) => photos.get(ctx, dev(w), req.params.name as string));
 route('GET', '/v1/app/update', 'device', (req, ctx) => {
   const build = Number(req.query.get('build') ?? 0);
   return ok(vendor.latestRelease(ctx, Number.isFinite(build) ? build : 0));
@@ -112,6 +119,16 @@ const own = (w: { owner?: owners.OwnerUser }) => w.owner as owners.OwnerUser;
 route('POST', '/v1/owner/login', 'none', async (req, ctx) => ok(await owners.ownerLogin(ctx, req.ip, req.body)));
 route('GET', '/v1/owner/me', 'owner', (_r, ctx, w) => ok(owners.me(ctx, own(w))));
 route('POST', '/v1/owner/password', 'owner', async (req, ctx, w) => ok(await owners.changeOwnerPassword(ctx, own(w), req.body)));
+route('GET', '/v1/owner/photos/:name', 'owner', (req, ctx, w) => {
+  if (own(w).must_change_password) throw new HttpError(403, 'password_change_required', 'Choose your own password first');
+  return photos.getForShop(ctx, own(w).tenant_id, req.params.name as string);
+});
+const ownerReady = (w: { owner?: owners.OwnerUser }) => {
+  if (own(w).must_change_password) throw new HttpError(403, 'password_change_required', 'Choose your own password first');
+  return own(w).tenant_id;
+};
+route('GET', '/v1/owner/ai/status', 'owner', (_r, ctx, w) => ai.status(ctx, ownerReady(w)));
+route('POST', '/v1/owner/ai/ask', 'owner', (req, ctx, w) => ai.ask(ctx, ownerReady(w), true, req.body));
 route('GET', '/v1/owner/reports/:name', 'owner', (req, ctx, w) => ok(owners.report(ctx, own(w), req.params.name as string, req.query)));
 
 // ---- Dispatch ----

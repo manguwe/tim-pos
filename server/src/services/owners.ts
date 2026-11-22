@@ -163,6 +163,19 @@ export function report(ctx: Ctx, owner: OwnerUser, name: string, q: URLSearchPar
     }
     case 'receivables': return { ...base, receivables: R.receivables(db, 50) };
     case 'cash-ups': return { ...base, cash_ups: R.cashUps(db, range(q)) };
+    case 'catalogue': {
+      // Products with their picture name, brand, selling price and what is on the shelf, for the owner's Products page.
+      const cur = (db.prepare('select base_currency from shops where deleted_at is null limit 1').get() as { base_currency: string } | undefined)?.base_currency ?? 'USD';
+      const products = db.prepare(
+        `select p.id, p.name, p.brand, p.image_ref, p.is_active, p.track_stock,
+           (select pp.price_minor from product_prices pp where pp.product_id = p.id and pp.deleted_at is null
+              and pp.tier_id is (select id from price_tiers where is_default = 1 and deleted_at is null) and pp.currency = ?
+              order by pp.effective_from desc, pp.created_at desc limit 1) as price_minor,
+           (select coalesce(sum(l.qty_milli), 0) from stock_levels l where l.product_id = p.id) as on_hand_milli
+         from products p where p.deleted_at is null order by p.name limit 500`,
+      ).all(cur);
+      return { ...base, base_currency: cur, products };
+    }
     case 'branches': {
       const branches = db.prepare('select id, name from branches where deleted_at is null order by name').all();
       const users = db.prepare('select id, name from users where deleted_at is null order by name').all();

@@ -19,6 +19,11 @@ export interface Config {
   log: boolean;
   /** Folder with the built web dashboard (dashboard/dist). Empty means the server does not serve one. */
   dashboardDir?: string | null;
+  /** Anthropic key for the AI add-on. Without it the feature stays off. */
+  aiApiKey?: string | null;
+  aiModel?: string;
+  /** Requests per shop per month, for each of the two AI features. */
+  aiMonthlyLimit?: number;
 }
 
 interface Secrets {
@@ -84,5 +89,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     maxBodyBytes: 8 * 1024 * 1024,
     log: env.LOG !== '0',
     dashboardDir: dashboardDir(env),
+    aiApiKey: env.ANTHROPIC_API_KEY || null,
+    aiModel: env.AI_MODEL || 'claude-haiku-5-5',
+    aiMonthlyLimit: Number(env.AI_MONTHLY_LIMIT ?? 300) || 300,
   };
 }
