@@ -10,12 +10,14 @@ import '../selling/cart_controller.dart';
 import '../selling/catalog.dart';
 import '../selling/selling.dart' hide Row;
 import 'customer_screens.dart';
+import 'department_screens.dart';
 import 'printer_screens.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import '../settings/app_prefs.dart';
 import 'product_pic.dart';
 import 'scan_screen.dart';
 import 'shift_screens.dart';
+import '../l10n/strings.dart';
 import 'theme.dart';
 
 /// The till: find products, build the cart, take payment in one or more currencies, and save the sale.
@@ -35,6 +37,8 @@ class _TillScreenState extends State<TillScreen> {
   List<ProductHit> _hits = [];
   int _searchToken = 0;
   bool _grid = true;
+  List<Map<String, Object?>> _depts = [];
+  String? _dept;
 
   CartController get c => widget.cart;
 
@@ -73,9 +77,10 @@ class _TillScreenState extends State<TillScreen> {
   /// Typed text searches by name or SKU. A pasted or scanned code that matches a barcode adds the product at once.
   Future<void> _run(String q) async {
     final token = ++_searchToken;
-    final hits = await c.catalog.search(q, branchId: c.setup.branchId, currency: c.currency);
+    final hits = await c.catalog.search(q, branchId: c.setup.branchId, currency: c.currency, categoryId: _dept);
+    final depts = await c.catalog.departments();
     if (!mounted || token != _searchToken) return; // a newer search replaced this one
-    setState(() => _hits = hits);
+    setState(() { _hits = hits; _depts = depts; });
   }
 
   /// A scanned or typed code goes in the cart at once. Returns a line to show ("Added Bread"), or null when the code is not a barcode.
@@ -201,6 +206,7 @@ class _TillScreenState extends State<TillScreen> {
             ),
           ]),
         ),
+        DepartmentChips(departments: _depts, selected: _dept, onSelect: (d) { _dept = d; _run(_search.text); }),
         Expanded(
           child: _hits.isEmpty
               ? const Center(child: Text('No products found'))
@@ -220,7 +226,7 @@ class _TillScreenState extends State<TillScreen> {
                     return ListTile(
                       enabled: h.canSell && !out,
                       title: Text(h.name),
-                      subtitle: Text(h.tracksStock ? (out ? 'Out of stock' : '${_qty(h.onHandMilli)} in stock') : 'Not stock-counted'),
+                      subtitle: Text('${h.tracksStock ? (out ? 'Out of stock' : '${_qty(h.onHandMilli)} in stock') : 'Not stock-counted'}${h.breaks.isEmpty ? '' : '  ·  ${h.breaks.map((b) => '${_qty(b.minQtyMilli)}+ at ${c.cur.format(b.priceMinor)}').join(', ')}'}'),
                       trailing: Text(h.canSell ? c.cur.format(h.unitPriceMinor!) : 'No price', style: const TextStyle(fontWeight: FontWeight.w700)),
                       onTap: () => _addTapped(h),
                     );
@@ -288,7 +294,7 @@ class _TillScreenState extends State<TillScreen> {
                           padding: const EdgeInsets.only(top: 8),
                           child: FilledButton.icon(
                             icon: const Icon(Icons.receipt_long),
-                            label: const Text('Receipt'),
+                            label: Text(tr('Receipt')),
                             onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ReceiptScreen(printing: widget.printing!, saleId: last.saleId))),
                           ),
                         ),
@@ -299,7 +305,7 @@ class _TillScreenState extends State<TillScreen> {
                 for (final i in c.items)
                   ListTile(
                     title: Text(i.hit.name),
-                    subtitle: Text('${_qty(i.qtyMilli)} × ${c.cur.format(i.hit.unitPriceMinor!)}'),
+                    subtitle: Text('${_qty(i.qtyMilli)} × ${c.cur.format(i.unitPrice)}${i.unitPrice != i.hit.unitPriceMinor ? '  (quantity price)' : ''}'),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       Text(c.cur.format(i.split.total), style: const TextStyle(fontWeight: FontWeight.w700)),
                       IconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: () => c.setQty(i, i.qtyMilli - 1000)),
@@ -314,15 +320,15 @@ class _TillScreenState extends State<TillScreen> {
         padding: const EdgeInsets.fromLTRB(14, 6, 14, 14),
         child: Column(children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Total', style: TextStyle(fontSize: 18)),
+            Text(tr('Total'), style: const TextStyle(fontSize: 18)),
             Text(c.cur.format(c.total), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
           ]),
           if (c.items.isNotEmpty && c.tax > 0) Align(alignment: Alignment.centerRight, child: Text('includes tax ${c.cur.format(c.tax)}', style: Theme.of(context).textTheme.bodySmall)),
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: OutlinedButton(onPressed: c.items.isEmpty ? null : c.clear, child: const Text('Clear'))),
+            Expanded(child: OutlinedButton(onPressed: c.items.isEmpty ? null : c.clear, child: Text(tr('Clear')))),
             const SizedBox(width: 10),
-            Expanded(flex: 2, child: FilledButton(onPressed: c.items.isEmpty || c.busy ? null : _pay, child: const Text('Pay'))),
+            Expanded(flex: 2, child: FilledButton(onPressed: c.items.isEmpty || c.busy ? null : _pay, child: Text(tr('Pay')))),
           ]),
         ]),
       ),
@@ -440,9 +446,9 @@ class _PaymentSheetState extends State<_PaymentSheet> {
             ]),
             if (c.customerId != null)
               Wrap(spacing: 8, children: [
-                ChoiceChip(label: const Text('Pay now'), selected: c.mode == 'full', onSelected: (_) => c.setMode('full')),
-                ChoiceChip(label: const Text('On account'), selected: c.mode == 'account', onSelected: (_) => c.setMode('account')),
-                ChoiceChip(label: const Text('Layby'), selected: c.mode == 'layby', onSelected: (_) => c.setMode('layby')),
+                ChoiceChip(label: Text(tr('Pay now')), selected: c.mode == 'full', onSelected: (_) => c.setMode('full')),
+                ChoiceChip(label: Text(tr('On account')), selected: c.mode == 'account', onSelected: (_) => c.setMode('account')),
+                ChoiceChip(label: Text(tr('Layby')), selected: c.mode == 'layby', onSelected: (_) => c.setMode('layby')),
               ]),
           ],
           const SizedBox(height: 10),
@@ -459,23 +465,23 @@ class _PaymentSheetState extends State<_PaymentSheet> {
           if (_method != 'cash') ...[const SizedBox(height: 8), TextField(controller: _ref, decoration: const InputDecoration(labelText: 'Confirmation reference'))],
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: OutlinedButton(onPressed: covered ? null : () => _add(exact: true), child: const Text('Exact amount'))),
+            Expanded(child: OutlinedButton(onPressed: covered ? null : () => _add(exact: true), child: Text(tr('Exact amount')))),
             const SizedBox(width: 10),
-            Expanded(child: FilledButton.tonal(onPressed: () => _add(), child: const Text('Add payment'))),
+            Expanded(child: FilledButton.tonal(onPressed: () => _add(), child: Text(tr('Add payment')))),
           ]),
           for (final p in c.payments) Text('${p.methodCode}: ${c.setup.currency(p.currency).format(p.amountMinor)}', textAlign: TextAlign.center),
           if (c.due < 0 && c.setup.currencies.length > 1) ...[
             const SizedBox(height: 6),
             Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              const Text('Give change in'),
+              Text(tr('Give change in')),
               for (final cu in c.setup.currencies) ChoiceChip(label: Text(cu.code), selected: (_changeCurrency ?? c.currency) == cu.code, onSelected: (_) => setState(() => _changeCurrency = cu.code)),
             ]),
           ],
           if (_note != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_note!, style: const TextStyle(color: Brand.coral))),
           const SizedBox(height: 12),
           Row(children: [
-            Expanded(child: TextButton(onPressed: c.payments.isEmpty ? null : () { c.clearPayments(); setState(() {}); }, child: const Text('Reset payments'))),
-            Expanded(flex: 2, child: FilledButton(onPressed: covered && !c.busy ? _save : null, child: Text(c.busy ? 'Saving…' : (c.mode == 'layby' ? 'Start layby' : 'Complete sale')))),
+            Expanded(child: TextButton(onPressed: c.payments.isEmpty ? null : () { c.clearPayments(); setState(() {}); }, child: Text(tr('Reset payments')))),
+            Expanded(flex: 2, child: FilledButton(onPressed: covered && !c.busy ? _save : null, child: Text(c.busy ? 'Saving…' : (c.mode == 'layby' ? tr('Start layby') : tr('Complete sale'))))),
           ]),
         ]),
       ),

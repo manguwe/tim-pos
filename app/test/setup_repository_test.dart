@@ -111,4 +111,73 @@ void main() {
     expect(parseQty('1.2345'), isNull);
     expect(parseQty('abc'), isNull);
   });
+
+  test('departments are added, renamed and removed, and products can belong to one', () async {
+    await repo.seedShop(name: 'A', countryCode: 'ZW');
+    final groceries = await repo.saveCategory(name: ' Groceries ');
+    await repo.saveCategory(name: 'Accessories');
+    await expectLater(repo.saveCategory(name: 'groceries'), throwsA(isA<SetupError>().having((e) => e.code, 'code', 'duplicate_department')));
+    await expectLater(repo.saveCategory(name: '  '), throwsA(isA<SetupError>().having((e) => e.code, 'code', 'missing')));
+    await repo.saveCategory(id: groceries, name: 'Food and groceries');
+    expect((await repo.listCategories()).map((r) => r['name']), ['Food and groceries', 'Accessories']);
+
+    final rice = await repo.saveProduct(ProductInput(name: 'Rice 5kg', priceMinor: 650, categoryId: groceries));
+    final cable = await repo.saveProduct(const ProductInput(name: 'Phone cable', priceMinor: 300));
+    expect((await repo.listProducts('', categoryId: groceries)).map((r) => r['name']), ['Rice 5kg']);
+    expect((await repo.listProducts('', categoryId: noDepartment)).map((r) => r['name']), ['Phone cable']);
+    expect((await repo.listProducts('')).length, 2);
+    // Saving again without naming a department leaves it as it was.
+    await repo.saveProduct(ProductInput(id: rice, name: 'Rice 5kg', priceMinor: 650));
+    expect((await repo.listProducts('', categoryId: groceries)).length, 1);
+    await repo.saveProduct(ProductInput(id: cable, name: 'Phone cable', priceMinor: 300, categoryId: (await repo.listCategories()).last['id'] as String));
+    expect((await repo.listCategories()).last['products'], 1);
+
+    await repo.deleteCategory(groceries);
+    expect((await repo.listCategories()).map((r) => r['name']), ['Accessories']);
+    expect((await repo.listProducts('', categoryId: noDepartment)).map((r) => r['name']), ['Rice 5kg']);
+  });
+
+  test('the common departments can be added twice without repeats', () async {
+    await repo.seedShop(name: 'A', countryCode: 'ZW');
+    final first = await repo.addSuggestedCategories();
+    expect(first, suggestedDepartments.length);
+    expect(await repo.addSuggestedCategories(), 0);
+    expect((await repo.listCategories()).length, suggestedDepartments.length);
+  });
+
+  test('a Zambian shop can choose dollars as its main currency, add a currency, and list the latest rates', () async {
+    await repo.seedShop(name: 'Lusaka Store', countryCode: 'ZM', baseCurrency: 'USD');
+    expect((await q('select base_currency from shops')).single['base_currency'], 'USD');
+    expect((await repo.shopCurrencies()).map((c) => c['code']), ['USD', 'ZMW']);
+    await repo.addCurrency('ZAR');
+    await repo.addCurrency('ZAR'); // twice is fine
+    expect((await repo.shopCurrencies()).map((c) => c['code']), ['USD', 'ZAR', 'ZMW']);
+    await expectLater(repo.addCurrency('XXX'), throwsA(isA<SetupError>()));
+    await repo.setExchangeRate('USD', 'ZMW', 27000000);
+    now += 1000;
+    await repo.setExchangeRate('USD', 'ZMW', 27500000);
+    final latest = await repo.latestRates();
+    expect(latest.single['rate_micro'], 27500000);
+    final fresh = await openTestDb();
+    final r2 = SetupRepository(db: fresh, shopId: 's', deviceId: 'd');
+    await expectLater(r2.seedShop(name: 'X', countryCode: 'ZW', baseCurrency: 'ZMW'), throwsA(isA<SetupError>().having((e) => e.code, 'code', 'bad_currency')));
+  });
+
+  test('quantity prices are saved as a set, and a pack price becomes a unit cost', () async {
+    await repo.seedShop(name: 'A', countryCode: 'ZW');
+    final id = await repo.saveProduct(const ProductInput(name: 'T-shirt', priceMinor: 500, costMinor: 300));
+    await repo.saveBreaks(id, [(minQtyMilli: 10000, priceMinor: 350), (minQtyMilli: 3000, priceMinor: 400)]);
+    expect((await repo.listBreaks(id)).map((b) => (b.minQtyMilli, b.priceMinor)), [(3000, 400), (10000, 350)]);
+    await repo.saveBreaks(id, [(minQtyMilli: 2000, priceMinor: 450)]);
+    expect((await repo.listBreaks(id)).map((b) => b.priceMinor), [450]);
+    expect((await q('select count(*) c from price_breaks where deleted_at is null')).single['c'], 1);
+    await expectLater(repo.saveBreaks(id, [(minQtyMilli: 1000, priceMinor: 100)]), throwsA(isA<SetupError>()));
+    await expectLater(repo.saveBreaks(id, [(minQtyMilli: 2000, priceMinor: 1), (minQtyMilli: 2000, priceMinor: 2)]), throwsA(isA<SetupError>()));
+    await repo.saveBreaks(id, []);
+    expect(await repo.listBreaks(id), isEmpty);
+    expect(unitCostFromPack(3600, 12000), 300);
+    expect(unitCostFromPack(1000, 3000), 333);
+    expect(unitCostFromPack(1000, 12000), 83);
+    expect(() => unitCostFromPack(1000, 0), throwsA(isA<SetupError>()));
+  });
 }

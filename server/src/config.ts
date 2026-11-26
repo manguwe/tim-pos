@@ -28,6 +28,16 @@ export interface Config {
   aiFactsChars?: number;
   /** Requests per shop per month, for each of the two AI features. */
   aiMonthlyLimit?: number;
+  /** Where daily database backups go. Empty or 'off' turns them off. */
+  telegramBotToken?: string | null;
+  whatsappToken?: string | null;
+  whatsappPhoneId?: string | null;
+  /** Name of the approved WhatsApp message template that has one text variable. */
+  whatsappTemplate?: string;
+  whatsappLang?: string;
+  backupDir?: string | null;
+  /** How many backups to keep. */
+  backupKeep?: number;
 }
 
 interface Secrets {
@@ -98,5 +108,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     aiModel: env.AI_MODEL || (env.GROQ_API_KEY ? 'qwen/qwen3.8-27b' : env.DEEPSEEK_API_KEY ? 'deepseek-flash' : 'claude-haiku-5-5'),
     aiFactsChars: Number(env.AI_FACTS_CHARS) || (env.GROQ_API_KEY ? 12_000 : 40_000),
     aiMonthlyLimit: Number(env.AI_MONTHLY_LIMIT ?? 300) || 300,
+    telegramBotToken: env.TELEGRAM_BOT_TOKEN || null,
+    whatsappToken: env.WHATSAPP_TOKEN || null,
+    whatsappPhoneId: env.WHATSAPP_PHONE_ID || null,
+    whatsappTemplate: env.WHATSAPP_TEMPLATE || 'shop_report',
+    whatsappLang: env.WHATSAPP_LANG || 'en',
+    backupDir: env.BACKUP_DIR === 'off' ? null : env.BACKUP_DIR ?? join(dataDir, 'backups'),
+    backupKeep: Number(env.BACKUP_KEEP) || 14,
   };
 }

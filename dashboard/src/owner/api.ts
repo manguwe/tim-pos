@@ -25,7 +25,7 @@ export function setOwnerSession(s: OwnerSession | null): void {
   window.dispatchEvent(new Event(OWNER_EVENT));
 }
 
-export async function ownerApi<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+export async function ownerApi<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { accept: 'application/json' };
   const s = getOwnerSession();
   if (s) headers.authorization = `Bearer ${s.token}`;
@@ -68,8 +68,9 @@ export interface CashUpRow { shift_id: string; user: string | null; opened_at: n
 // ---- products with pictures ----
 export interface CatalogueRow {
   id: string; name: string; brand: string | null; image_ref: string | null; is_active: number | null; track_stock: number | null;
-  price_minor: number | null; on_hand_milli: number;
+  price_minor: number | null; on_hand_milli: number; category_id: string | null;
 }
+export interface DepartmentRow { department: string; qty_milli: number; revenue_minor: number; profit_minor: number }
 
 const photoCache = new Map<string, Promise<string | null>>();
 /** A product picture as a data: address. The server needs the owner's sign-in for it, so an <img src> cannot fetch it directly. */

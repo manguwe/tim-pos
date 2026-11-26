@@ -29,6 +29,19 @@ export function BillingSettings() {
           toast('Billing details saved.'); q.reload();
         } catch (err) { setError(errorText(err)); } finally { setBusy(false); }
       }}>
+        <Field label="Logo" hint="Printed at the top of invoices and receipts. A PNG or JPG; it is shrunk automatically.">
+          {(id) => (
+            <div>
+              {f.logo && <div style={{ marginBottom: 8 }}><img src={f.logo} alt="Your logo" style={{ maxHeight: 80, maxWidth: 240 }} /></div>}
+              <input id={id} type="file" accept="image/png,image/jpeg,image/webp" onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try { set('logo', await shrinkLogo(file)); setError(null); } catch (err) { setError(errorText(err)); }
+              }} />
+              {f.logo && <div><Button type="button" small onClick={() => set('logo', '')}>Remove logo</Button></div>}
+            </div>
+          )}
+        </Field>
         <Field label="Business name">{text('business_name')}</Field>
         <Field label="Address">{text('address')}</Field>
         <div className="grid2">
@@ -51,4 +64,21 @@ export function BillingSettings() {
       </form>
     </Page>
   );
+}
+
+/** Shrinks a picture to at most 240 by 120 pixels and returns it as a small PNG, so it stays light on every invoice. */
+async function shrinkLogo(file: File): Promise<string> {
+  if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error('Choose a PNG, JPG or WebP picture.');
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error('That picture could not be read.')); i.src = url; });
+    const scale = Math.min(1, 240 / img.width, 120 / img.height);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * scale));
+    c.height = Math.max(1, Math.round(img.height * scale));
+    c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+    const out = c.toDataURL('image/png');
+    if (out.length > 250_000) throw new Error('That picture is too detailed. Try a simpler logo.');
+    return out;
+  } finally { URL.revokeObjectURL(url); }
 }

@@ -10,6 +10,7 @@ class AboutScreen extends StatelessWidget {
 
   static const whatsappUrl = 'https://wa.me/260768648291';
   static const callNumber = '+263774348204';
+  static const supportPhone = '+260768648291';
   static const webUrl = 'https://timtiml-website.vercel.app';
   static const email = 'anotida30manguwe12@gmail.com';
 

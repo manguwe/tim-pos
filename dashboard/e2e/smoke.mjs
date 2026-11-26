@@ -69,10 +69,11 @@ try {
   await page.getByLabel('Once-off fee').fill('120');
   await page.getByLabel('Monthly fee').fill('15.50');
   await page.getByLabel('Phones').fill('2');
-  await page.getByLabel('Features').fill('zimra, loyalty');
+  await page.getByLabel('Zimra fiscal receipts', { exact: false }).check();
   await page.getByRole('button', { name: 'Create plan' }).click();
-  await page.getByRole('cell', { name: 'Standard' }).waitFor();
-  assert.match(await page.locator('tbody').innerText(), /USD 15\.50/);
+  await page.getByRole('heading', { name: 'Standard' }).waitFor();
+  assert.match(await page.locator('.plan-grid').innerText(), /USD 15\.50/);
+  assert.match(await page.locator('.plan-grid').innerText(), /ZIMRA fiscal receipts/);
   ok('create plan (money shown correctly)');
 
   step = 'issue licence';

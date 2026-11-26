@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
 import '../auth/auth_repository.dart';
+import '../l10n/strings.dart';
+import '../share/whatsapp.dart';
+import 'about_screen.dart';
 import 'theme.dart';
 
 /// Who is working? Tap your name, then enter your PIN. Works offline; wrong PINs lock the name for a while on this phone.
@@ -52,6 +55,70 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _forgotPin(LoginUser u) async {
+    final c = widget.controller;
+    final auth = c.authRepository();
+    if (auth == null) return;
+    final key = c.licence.payload?.recoveryKey ?? '';
+    final challenge = await auth.pendingPinRecovery() ?? await auth.startPinRecovery();
+    if (!mounted) return;
+    final code = TextEditingController();
+    final pin = TextEditingController();
+    String? error;
+    var busy = false;
+    final done = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const Text('Forgot PIN'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('For ${u.name}. Only the shop owner or manager should do this.'),
+              const SizedBox(height: 10),
+              const Text('1. Send this number to your supplier:'),
+              Center(child: Text(challenge, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: 3))),
+              Center(
+                child: TextButton.icon(
+                  icon: const Icon(Icons.chat),
+                  label: const Text('Send on WhatsApp'),
+                  onPressed: () => openOrCopy(
+                    ctx,
+                    whatsappLink('PIN reset for ${c.licence.payload?.shopName ?? 'my shop'}, ${u.name}. Number: $challenge', phone: AboutScreen.supportPhone),
+                    'PIN reset number: $challenge',
+                  ),
+                ),
+              ),
+              const Text('2. Type the 8-digit code they give you, then choose a new PIN:'),
+              TextField(controller: code, keyboardType: TextInputType.number, maxLength: 8, decoration: const InputDecoration(labelText: 'Code from supplier')),
+              TextField(controller: pin, keyboardType: TextInputType.number, obscureText: true, maxLength: 8, decoration: const InputDecoration(labelText: 'New PIN (4 to 8 digits)')),
+              if (error != null) Text(error!, style: const TextStyle(color: Brand.coral)),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setD(() { busy = true; error = null; });
+                      try {
+                        await auth.recoverPin(userId: u.id, recoveryKey: key, code: code.text, newPin: pin.text.trim());
+                        if (ctx.mounted) Navigator.pop(ctx, true);
+                      } on AuthError catch (e) {
+                        setD(() { busy = false; error = e.message; });
+                      }
+                    },
+              child: const Text('Set new PIN'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (done == true && mounted) {
+      setState(() { _pin = ''; _error = 'PIN changed. Enter your new PIN.'; });
+    }
+  }
+
   String _clock(int ms) {
     final d = DateTime.fromMillisecondsSinceEpoch(ms);
     return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
@@ -79,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 12),
             Text(shop, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
-            Text(picked == null ? 'Who is working?' : 'Hello, ${picked.name}. Enter your PIN.', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+            Text(picked == null ? tr('Who is working?') : 'Hello, ${picked.name}. Enter your PIN.', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 16)),
           ]),
         ),
         Expanded(
@@ -128,7 +195,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : OutlinedButton(style: OutlinedButton.styleFrom(backgroundColor: Colors.white), onPressed: () => _digit(k), child: Text(k, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600))),
                       ],
                     ),
-                    TextButton(onPressed: () => setState(() { _picked = null; _pin = ''; _error = null; }), child: const Text('Not you? Go back')),
+                    TextButton(onPressed: () => setState(() { _picked = null; _pin = ''; _error = null; }), child: Text(tr('Not you? Go back'))),
+                    TextButton(onPressed: () => _forgotPin(picked), child: Text(tr('Forgot PIN?'))),
                   ],
                 ]),
               ),
@@ -174,11 +242,24 @@ class _StaffScreenState extends State<StaffScreen> {
       setState(() => _message = done);
     } on AuthError catch (e) {
       setState(() => _message = e.message);
+    } catch (e) {
+      // Never fail silently: show what went wrong so it can be sent to support.
+      setState(() => _message = 'Could not do that. Please send this to support (More, then Help and contact): $e');
     }
     await _load();
   }
 
   Future<void> _add() async {
+    final limit = widget.controller.maxUsers;
+    final active = _staff.where((u) => u['is_active'] == 1).length;
+    if (limit > 0 && active >= limit) {
+      setState(() => _message = 'Your plan allows up to $limit people. To add more, ask your supplier to move you to a bigger plan (More, then Help and contact).');
+      return;
+    }
+    if (_roles.isEmpty) {
+      setState(() => _message = 'No roles were found on this phone, so a person cannot be added yet. Sync once while online and try again.');
+      return;
+    }
     final name = TextEditingController();
     final pin = TextEditingController();
     String? role = _roles.isEmpty ? null : _roles.firstWhere((r) => r['name'] == 'Cashier', orElse: () => _roles.first)['id'] as String;
@@ -224,7 +305,9 @@ class _StaffScreenState extends State<StaffScreen> {
         appBar: AppBar(title: const Text('Staff'), backgroundColor: Brand.navy, foregroundColor: Colors.white),
         floatingActionButton: FloatingActionButton.extended(onPressed: _add, icon: const Icon(Icons.person_add_alt), label: const Text('Add person')),
         body: Column(children: [
-          if (_message != null) Padding(padding: const EdgeInsets.all(10), child: Text(_message!)),
+          if (widget.controller.maxUsers > 0)
+            Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 0), child: Text('${_staff.where((u) => u['is_active'] == 1).length} of ${widget.controller.maxUsers} people on your plan', style: const TextStyle(color: Colors.grey))),
+          if (_message != null) Padding(padding: const EdgeInsets.all(10), child: Text(_message!, style: const TextStyle(color: Brand.coral))),
           Expanded(
             child: ListView.separated(
               itemCount: _staff.length,

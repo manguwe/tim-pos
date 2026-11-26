@@ -198,3 +198,14 @@ export function rawPublicKey(publicKeyPem: string): string {
   const der = crypto.createPublicKey(publicKeyPem).export({ type: 'spki', format: 'der' });
   return b64u(der.subarray(der.length - 32));
 }
+
+/**
+ * Code that lets a person who forgot their PIN set a new one. The phone shows an 8-digit challenge,
+ * the vendor enters it on the dashboard with the person's id, and reads back this code. The phone
+ * works out the same code from the recovery key in its signed licence. The Dart port must match:
+ * HMAC-SHA256(key, "challenge|userId"), first 4 bytes as a big-endian number, modulo 10^8, 8 digits.
+ */
+export function pinResetCode(recoveryKey: string, challenge: string, userId: string): string {
+  const mac = crypto.createHmac('sha256', recoveryKey).update(`${challenge}|${userId}`).digest();
+  return String(mac.readUInt32BE(0) % 100_000_000).padStart(8, '0');
+}

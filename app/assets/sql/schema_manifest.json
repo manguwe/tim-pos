@@ -276,6 +276,24 @@
    "effective_from"
   ]
  },
+ "price_breaks": {
+  "kind": "versioned",
+  "columns": [
+   "id",
+   "shop_id",
+   "created_at",
+   "created_by",
+   "device_id",
+   "updated_at",
+   "version",
+   "deleted_at",
+   "product_id",
+   "tier_id",
+   "currency",
+   "min_qty_milli",
+   "price_minor"
+  ]
+ },
  "promotions": {
   "kind": "versioned",
   "columns": [

@@ -128,3 +128,16 @@ test('a receipt loaded from a real saved sale matches what was sold', () => {
   const copy = loadReceipt(db, sale.sale_id, { kind: 'copy' });
   assert.match(toText(layoutReceipt(copy, { width: WIDTH_58, utc_offset_minutes: 0 }), WIDTH_58), /COPY/);
 });
+
+test('a shop can hide the cashier and customer names and change the last line', () => {
+  const base = sample({ cashier: 'Rudo', customer: 'Mai Tendai' });
+  const usual = toText(layoutReceipt(base, { width: WIDTH_58, utc_offset_minutes: 0 }), WIDTH_58);
+  assert.match(usual, /Cashier/);
+  assert.match(usual, /Customer/);
+  assert.match(usual, /Thank you/);
+  const custom = toText(layoutReceipt({ ...base, show_cashier: false, show_customer: false, thanks: 'Come again' }, { width: WIDTH_58, utc_offset_minutes: 0 }), WIDTH_58);
+  assert.doesNotMatch(custom, /Cashier|Customer|Thank you/);
+  assert.match(custom, /Come again/);
+  const none = toText(layoutReceipt({ ...base, thanks: '' }, { width: WIDTH_58, utc_offset_minutes: 0 }), WIDTH_58);
+  assert.doesNotMatch(none, /Thank you/);
+});

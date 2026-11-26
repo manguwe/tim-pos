@@ -30,12 +30,21 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 export interface Profile {
   business_name: string; address: string; phone: string; email: string; tax_number: string; default_tax_bp: number; default_due_days: number;
-  invoice_prefix: string; receipt_prefix: string; payment_instructions: string; footer: string; updated_at: number;
+  invoice_prefix: string; receipt_prefix: string; payment_instructions: string; footer: string; logo: string; updated_at: number;
 }
 
 export function getProfile(ctx: Ctx): Profile {
   const { id: _id, ...p } = ctx.db.get<Profile & { id: number }>('select * from billing_profile where id = 1') as Profile & { id: number };
   return p;
+}
+
+/** The logo is kept as a small picture inside the database and printed on invoices. Empty text removes it. */
+function logoValue(o: Obj, current: string): string {
+  if (o.logo === undefined) return current;
+  const v = str(o, 'logo', { max: 300_000, optional: true });
+  if (v === '') return '';
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(v)) throw new HttpError(400, 'invalid_request', 'The logo must be a PNG, JPEG or WebP picture');
+  return v;
 }
 
 export function saveProfile(ctx: Ctx, user: VendorUser, body: unknown): Profile {
@@ -49,15 +58,15 @@ export function saveProfile(ctx: Ctx, user: VendorUser, body: unknown): Profile 
   };
   const next = {
     business_name: text('business_name', 120), address: text('address', 300), phone: text('phone', 60), email: text('email', 120), tax_number: text('tax_number', 60),
-    payment_instructions: text('payment_instructions', 1000), footer: text('footer', 300),
+    payment_instructions: text('payment_instructions', 1000), footer: text('footer', 300), logo: logoValue(o, cur.logo),
     default_tax_bp: o.default_tax_bp === undefined ? cur.default_tax_bp : int(o, 'default_tax_bp', { max: 10000 }),
     default_due_days: o.default_due_days === undefined ? cur.default_due_days : int(o, 'default_due_days', { max: 365 }),
     invoice_prefix: prefix('invoice_prefix'), receipt_prefix: prefix('receipt_prefix'),
   };
   ctx.db.run(
-    `update billing_profile set business_name = ?, address = ?, phone = ?, email = ?, tax_number = ?, payment_instructions = ?, footer = ?,
+    `update billing_profile set business_name = ?, address = ?, phone = ?, email = ?, tax_number = ?, payment_instructions = ?, footer = ?, logo = ?,
        default_tax_bp = ?, default_due_days = ?, invoice_prefix = ?, receipt_prefix = ?, updated_at = ? where id = 1`,
-    next.business_name, next.address, next.phone, next.email, next.tax_number, next.payment_instructions, next.footer,
+    next.business_name, next.address, next.phone, next.email, next.tax_number, next.payment_instructions, next.footer, next.logo,
     next.default_tax_bp, next.default_due_days, next.invoice_prefix, next.receipt_prefix, ctx.now(),
   );
   audit(ctx, user.id, 'billing.profile', null);
@@ -339,7 +348,7 @@ export function monthlyRun(ctx: Ctx, user: VendorUser, body: unknown): Obj {
     const due = ctx.db.all<{ id: string; tenant_id: string; tenant_name: string; plan_name: string; monthly_fee_minor: number; currency: string }>(
       `select l.id, l.tenant_id, t.name as tenant_name, p.name as plan_name, p.monthly_fee_minor, p.currency
        from licences l join tenants t on t.id = l.tenant_id join plans p on p.id = l.plan_id
-       where l.status = 'active' and t.status = 'active' and p.monthly_fee_minor > 0 and l.expires_at > ? and l.issued_at < ?
+       where l.status = 'active' and l.complimentary = 0 and l.is_trial = 0 and t.status = 'active' and p.monthly_fee_minor > 0 and l.expires_at > ? and l.issued_at < ?
        order by t.name, l.id`, start, end);
     const created: Obj[] = [];
     let already = 0;

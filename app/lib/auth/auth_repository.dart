@@ -29,6 +29,13 @@ const Map<String, List<String>> defaultRoles = {
   'stock_clerk': ['stock.receive', 'product.edit', 'cost.view'],
 };
 
+/// The code the vendor reads out so someone who forgot their PIN can choose a new one. Matches pinResetCode() in server/src/crypto.ts.
+String pinResetCode(String recoveryKey, String challenge, String userId) {
+  final mac = Hmac(sha256, utf8.encode(recoveryKey)).convert(utf8.encode('$challenge|$userId')).bytes;
+  final n = (mac[0] << 24) | (mac[1] << 16) | (mac[2] << 8) | mac[3];
+  return (n % 100000000).toString().padLeft(8, '0');
+}
+
 class AuthError implements Exception {
   AuthError(this.code, this.message, [this.detail = const {}]);
   final String code;
@@ -350,6 +357,65 @@ class AuthRepository {
       await _writeLock(tx, userId, 0, 0);
       await _audit(tx, actorId, 'pin_reset', userId, now);
     });
+  }
+
+  /// Starts a forgotten-PIN request: makes an 8-digit number to read to the vendor. It is good for 24 hours and 5 wrong codes.
+  Future<String> startPinRecovery() async {
+    final r = Random.secure();
+    final challenge = List.generate(8, (_) => r.nextInt(10)).join();
+    final now = _clock();
+    await db.transaction((tx) async {
+      await tx.exec(
+        'insert into device_state (key, value) values (?, ?) on conflict (key) do update set value = excluded.value',
+        ['pin_recovery', jsonEncode({'challenge': challenge, 'at': now, 'tries': 0})],
+      );
+    });
+    return challenge;
+  }
+
+  /// The number currently waiting for a code, if it is still valid.
+  Future<String?> pendingPinRecovery() async {
+    final row = await db.query('select value from device_state where key = ?', ['pin_recovery']);
+    if (row.isEmpty) return null;
+    final v = jsonDecode(row.first['value'] as String) as Map<String, dynamic>;
+    if (_clock() - (v['at'] as num).toInt() > 24 * 3600000) return null;
+    return v['challenge'] as String;
+  }
+
+  /// Checks the vendor's code for this person and, if right, sets the new PIN and clears the lock.
+  Future<void> recoverPin({required String userId, required String recoveryKey, required String code, required String newPin}) async {
+    if (recoveryKey.isEmpty) throw AuthError('no_key', 'Connect to the internet once so this phone can get its recovery key, then try again.');
+    final bad = validatePin(newPin);
+    if (bad != null) throw AuthError('weak_pin', bad);
+    final now = _clock();
+    AuthError? failure;
+    await db.transaction((tx) async {
+      final r = await _get(tx, 'select value from device_state where key = ?', ['pin_recovery']);
+      if (r == null) {
+        failure = AuthError('no_request', 'Tap "Forgot PIN" again to get a new number.');
+        return;
+      }
+      final v = jsonDecode(r['value'] as String) as Map<String, dynamic>;
+      final tries = (v['tries'] as num).toInt();
+      if (now - (v['at'] as num).toInt() > 24 * 3600000 || tries >= 5) {
+        await tx.exec('delete from device_state where key = ?', ['pin_recovery']);
+        failure = AuthError('expired', 'That request has expired. Tap "Forgot PIN" again to get a new number.');
+        return;
+      }
+      final want = pinResetCode(recoveryKey, v['challenge'] as String, userId);
+      if (code.trim() != want) {
+        v['tries'] = tries + 1;
+        await tx.exec('update device_state set value = ? where key = ?', [jsonEncode(v), 'pin_recovery']);
+        failure = AuthError('wrong_code', 'That code is not right. ${4 - tries} ${4 - tries == 1 ? 'try' : 'tries'} left.');
+        return;
+      }
+      final hash = hashPin(newPin);
+      await _edit(tx, 'users', userId, {'pin_hash': hash}, now);
+      await _writeLock(tx, userId, 0, 0);
+      await tx.exec('delete from device_state where key = ?', ['pin_recovery']);
+      await _audit(tx, userId, 'pin_recovered', userId, now);
+    });
+    if (failure != null) throw failure!;
   }
 
   /// Someone changes their own PIN; the old one must be right (and counts towards the lock if not).

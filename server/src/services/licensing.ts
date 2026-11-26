@@ -17,6 +17,9 @@ export interface LicenceRow {
   max_devices: number;
   max_branches: number;
   features: string;
+  complimentary: number;
+  is_trial: number;
+  max_users: number;
   created_at: number;
 }
 
@@ -44,6 +47,7 @@ export interface ActivationRow {
   last_seen_at: number | null;
   last_pull_seq: number;
   released_at: number | null;
+  recovery_key: string;
 }
 
 export interface DeviceAuth {
@@ -76,6 +80,9 @@ export function newLicence(
     maxOfflineDays?: number;
     maxDevices: number;
     maxBranches: number;
+    maxUsers?: number;
+    complimentary?: boolean;
+    trial?: boolean;
     features: string[];
   },
 ): { licence: LicenceRow; key: string } {
@@ -95,14 +102,17 @@ export function newLicence(
     max_devices: input.maxDevices,
     max_branches: input.maxBranches,
     features: JSON.stringify(input.features),
+    complimentary: input.complimentary ? 1 : 0,
+    is_trial: input.trial ? 1 : 0,
+    max_users: input.maxUsers ?? 0,
     created_at: now,
   };
   ctx.db.run(
     `insert into licences (id, tenant_id, plan_id, key_hash, key_hint, status, issued_at, expires_at, grace_days,
-       max_offline_days, max_devices, max_branches, features, created_at)
-     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       max_offline_days, max_devices, max_branches, features, complimentary, max_users, is_trial, created_at)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.id, row.tenant_id, row.plan_id, row.key_hash, row.key_hint, row.status, row.issued_at, row.expires_at,
-    row.grace_days, row.max_offline_days, row.max_devices, row.max_branches, row.features, row.created_at,
+    row.grace_days, row.max_offline_days, row.max_devices, row.max_branches, row.features, row.complimentary, row.max_users, row.is_trial, row.created_at,
   );
   return { licence: row, key };
 }
@@ -124,6 +134,9 @@ export function issueToken(ctx: Ctx, a: ActivationRow, lic: LicenceRow, tenant: 
     features: JSON.parse(lic.features) as string[],
     max_devices: lic.max_devices,
     max_branches: lic.max_branches,
+    max_users: lic.max_users,
+    trial: lic.is_trial === 1,
+    recovery_key: a.recovery_key,
     issued_at: now,
     expires_at: lic.expires_at,
     grace_days: lic.grace_days,
@@ -212,14 +225,14 @@ export function activate(
         id: newId(), licence_id: lic.id, tenant_id: tenant.id, fingerprint: input.fingerprint,
         device_name: input.deviceName, platform: input.platform, secret_hash: sha256hex(secret),
         receipt_prefix: `D${next}`,
-        app_version: input.appVersion, activated_at: now, last_seen_at: now, last_pull_seq: 0, released_at: null,
+        app_version: input.appVersion, activated_at: now, last_seen_at: now, last_pull_seq: 0, released_at: null, recovery_key: randomSecret(16),
       };
       ctx.db.run(
         `insert into activations (id, licence_id, tenant_id, fingerprint, device_name, platform, secret_hash,
-           receipt_prefix, app_version, activated_at, last_seen_at, last_pull_seq)
-         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+           receipt_prefix, app_version, activated_at, last_seen_at, last_pull_seq, recovery_key)
+         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
         activation.id, lic.id, tenant.id, input.fingerprint, input.deviceName, input.platform,
-        activation.secret_hash, activation.receipt_prefix, input.appVersion, now, now,
+        activation.secret_hash, activation.receipt_prefix, input.appVersion, now, now, activation.recovery_key,
       );
     }
     ctx.activationLimiter.succeed(ip);

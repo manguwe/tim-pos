@@ -3,7 +3,7 @@ import { ApiError } from '../api.ts';
 import { Link, navigate } from '../router.tsx';
 import { Button, Field, errorText } from '../ui.tsx';
 import { OWNER_EVENT, getOwnerSession, ownerApi, setOwnerSession, type OwnerSession } from './api.ts';
-import { Ask, Catalogue, CashUps, FilterCtx, OwnerAccount, Owed, Products, Sales, Stock, type Filters } from './pages.tsx';
+import { Ask, Catalogue, ReportMessages, CashUps, FilterCtx, OwnerAccount, Owed, Products, Sales, Stock, type Filters } from './pages.tsx';
 
 const NAV = [
   { to: '/owner', label: 'Sales' },
@@ -12,7 +12,8 @@ const NAV = [
   { to: '/owner/stock', label: 'Stock' },
   { to: '/owner/owed', label: 'Customers who owe' },
   { to: '/owner/cash-ups', label: 'Cash-ups' },
-  { to: '/owner/ask', label: 'Ask' },
+  { to: '/owner/ask', label: 'Team AI' },
+  { to: '/owner/reports-message', label: 'Report messages' },
   { to: '/owner/account', label: 'My account' },
 ];
 
@@ -72,6 +73,7 @@ export function OwnerApp({ path }: { path: string }) {
   else if (path === '/owner/products') page = <Products />;
   else if (path === '/owner/catalogue') page = <Catalogue />;
   else if (path === '/owner/ask') page = <Ask />;
+  else if (path === '/owner/reports-message') page = <ReportMessages />;
   else if (path === '/owner/stock') page = <Stock />;
   else if (path === '/owner/owed') page = <Owed />;
   else if (path === '/owner/cash-ups') page = <CashUps />;

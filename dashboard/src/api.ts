@@ -15,7 +15,7 @@ export interface ShopRow {
 }
 export interface Licence {
   id: string; tenant_id: string; plan_id: string | null; key_hint: string; status: 'active' | 'suspended';
-  issued_at: number; expires_at: number; grace_days: number; max_offline_days: number; max_devices: number; max_branches: number;
+  issued_at: number; expires_at: number; grace_days: number; max_offline_days: number; max_devices: number; max_branches: number; max_users: number; complimentary: boolean; trial: boolean;
   features: string[];
 }
 export interface Device {
@@ -28,8 +28,9 @@ export interface ShopDetail {
 }
 export interface Plan {
   id: string; name: string; one_time_fee_minor: number; monthly_fee_minor: number; currency: string;
-  max_devices: number; max_branches: number; features: string[];
+  max_devices: number; max_branches: number; max_users: number; description: string; features: string[];
 }
+export interface FeatureInfo { key: string; label: string; description: string }
 export interface Release {
   id: string; version: string; build_number: number; min_supported_build: number; sha256: string; size_bytes: number;
   apk_url: string; notes: string | null; published_at: number;
@@ -53,7 +54,7 @@ export interface InvoicePayment {
 }
 export interface BillingProfile {
   business_name: string; address: string; phone: string; email: string; tax_number: string; default_tax_bp: number; default_due_days: number;
-  invoice_prefix: string; receipt_prefix: string; payment_instructions: string; footer: string; updated_at: number;
+  invoice_prefix: string; receipt_prefix: string; payment_instructions: string; footer: string; logo: string; updated_at: number;
 }
 export interface InvoiceDetail extends Invoice {
   lines: InvoiceLine[]; payments: InvoicePayment[]; profile: BillingProfile;

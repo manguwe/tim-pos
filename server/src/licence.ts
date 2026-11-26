@@ -19,6 +19,12 @@ export interface LicencePayload {
   features: string[];
   max_devices: number;
   max_branches: number;
+  /** How many people may be set up to sign in. 0 or missing means no limit. */
+  max_users?: number;
+  /** True while this is a free trial. */
+  trial?: boolean;
+  /** Secret for this phone, used only to check PIN reset codes. */
+  recovery_key?: string;
   issued_at: number;
   /** End of the paid period. */
   expires_at: number;

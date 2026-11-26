@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../printing/receipt.dart' show sampleReceiptText;
 import '../settings/settings_repository.dart';
 import '../setup/setup_repository.dart' show SetupError;
 import 'theme.dart';
 
 /// Shop settings: switches, a number and two lines of receipt text. Changes are saved together with one button.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.repo});
+  const SettingsScreen({super.key, required this.repo, this.shopName = 'Your shop'});
   final SettingsRepository repo;
+  final String shopName;
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -82,6 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               for (final g in groups) ...[
                 Padding(padding: const EdgeInsets.only(top: 8, bottom: 4), child: Text(g, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
                 for (final d in shopSettings.where((d) => d.group == g)) _row(d),
+                if (g == 'Receipts') _preview(),
               ],
               if (_note != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_note!, style: TextStyle(color: _ok ? Brand.teal : Brand.coral, fontWeight: FontWeight.w600))),
               const SizedBox(height: 12),
@@ -89,6 +92,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]),
     );
   }
+
+  /// What a receipt will look like with the values typed above, before anything is saved.
+  Widget _preview() => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.black26)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Preview of your receipt', style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text(sampleReceiptText(_draft, shopName: widget.shopName), style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.25, color: Colors.black)),
+          ]),
+        ),
+      );
 
   Widget _row(SettingDef d) {
     if (d.kind == SettingKind.bool) {

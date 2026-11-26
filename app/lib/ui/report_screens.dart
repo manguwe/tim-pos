@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../reports/report_repository.dart';
 import '../selling/catalog.dart';
+import '../l10n/strings.dart';
+import '../share/report_text.dart';
+import '../share/whatsapp.dart';
 import 'theme.dart';
 
 /// Reports for the owner or manager. Days follow the phone's clock (the shop's local time).
 class ReportScreen extends StatefulWidget {
-  const ReportScreen({super.key, required this.repo, this.now});
+  const ReportScreen({super.key, required this.repo, this.now, this.shopName});
   final ReportRepository repo;
+  final String? shopName;
   final DateTime Function()? now;
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -114,6 +118,8 @@ class _ReportScreenState extends State<ReportScreen> {
     await _load();
   }
 
+  String _shareText() => reportText(shopName: widget.shopName ?? 'My shop', periodLabel: _labels[_preset]!, summary: _summary!, top: _top);
+
   static const _labels = {_Preset.today: 'Today', _Preset.yesterday: 'Yesterday', _Preset.week: 'Last 7 days', _Preset.month: 'This month', _Preset.custom: 'Pick dates'};
 
   @override
@@ -123,8 +129,15 @@ class _ReportScreenState extends State<ReportScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Reports'),
-          bottom: const TabBar(isScrollable: true, tabs: [
-            Tab(text: 'Sales'), Tab(text: 'Best sellers'), Tab(text: 'Takings'), Tab(text: 'Stock'), Tab(text: 'Owed'), Tab(text: 'Cash-ups'),
+          actions: [
+            IconButton(
+              tooltip: 'Send this report on WhatsApp',
+              icon: const Icon(Icons.chat),
+              onPressed: _summary == null ? null : () => openOrCopy(context, whatsappLink(_shareText()), _shareText()),
+            ),
+          ],
+          bottom: TabBar(isScrollable: true, tabs: [
+            Tab(text: tr('Sales')), Tab(text: tr('Best sellers')), Tab(text: tr('Takings')), Tab(text: tr('Stock')), Tab(text: tr('Owed')), Tab(text: tr('Cash-ups')),
           ]),
         ),
         body: Column(children: [
@@ -134,7 +147,7 @@ class _ReportScreenState extends State<ReportScreen> {
               for (final p in _Preset.values)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(label: Text(_labels[p]!), selected: _preset == p, onSelected: (_) => _pick(p)),
+                  child: ChoiceChip(label: Text(tr(_labels[p]!)), selected: _preset == p, onSelected: (_) => _pick(p)),
                 ),
             ]),
           ),

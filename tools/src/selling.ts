@@ -167,6 +167,19 @@ function sellInTransaction(db: DatabaseSync, ctx: SaleContext, cart: Cart, newId
         if (inBase === undefined) throw new SaleError('no_price', `${p.name} has no price in ${cart.sale_currency}.`, { product_id: p.id });
         unit = convert(inBase, base, cart.sale_currency);
       }
+      // quantity price: from min_qty upwards every unit is at the break price (the highest break that the quantity reaches wins)
+      const findBreak = (cur: string): number | undefined => {
+        const rows = all(
+          `select price_minor, tier_id from price_breaks where product_id = ? and currency = ? and min_qty_milli <= ? and deleted_at is null
+           order by min_qty_milli desc, created_at desc`, p.id, cur, l.qty_milli);
+        return (rows.find((r) => r.tier_id === tierId) ?? rows.find((r) => r.tier_id === null))?.price_minor as number | undefined;
+      };
+      const brk = findBreak(cart.sale_currency);
+      if (brk !== undefined) unit = brk;
+      else if (cart.sale_currency !== base) {
+        const inBase = findBreak(base);
+        if (inBase !== undefined) unit = convert(inBase, base, cart.sale_currency);
+      }
     }
 
     const discount = l.discount_minor ?? 0;

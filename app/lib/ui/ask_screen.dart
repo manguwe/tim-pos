@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../ai/ai_service.dart';
 import 'theme.dart';
@@ -12,6 +13,9 @@ class _Turn {
 
 /// Ask about prices, stock and sales in plain words. Needs internet; the till never does.
 class AskScreen extends StatefulWidget {
+  /// True while this screen is open, so the floating Team AI button can step aside.
+  static final ValueNotifier<bool> isOpen = ValueNotifier<bool>(false);
+
   const AskScreen({super.key, required this.ai, required this.includeSales});
   final AiService ai;
   final bool includeSales;
@@ -22,12 +26,69 @@ class AskScreen extends StatefulWidget {
 class _AskScreenState extends State<AskScreen> {
   final _text = TextEditingController();
   final _turns = <_Turn>[];
+  final _speech = SpeechToText();
   bool _busy = false;
+  bool _listening = false;
+  bool _speechReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => AskScreen.isOpen.value = true);
+  }
 
   @override
   void dispose() {
+    _speech.cancel();
     _text.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) => AskScreen.isOpen.value = false);
     super.dispose();
+  }
+
+  void _note(String m) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  /// Tap the microphone, speak, and the question is sent when you stop talking. Needs internet and the phone's speech service.
+  Future<void> _mic() async {
+    if (_busy) return;
+    if (_listening) {
+      await _speech.stop();
+      if (mounted) setState(() => _listening = false);
+      return;
+    }
+    try {
+      if (!_speechReady) {
+        _speechReady = await _speech.initialize(
+          onStatus: (s) {
+            if ((s == 'done' || s == 'notListening') && mounted) setState(() => _listening = false);
+          },
+          onError: (_) {
+            if (mounted) setState(() => _listening = false);
+          },
+        );
+      }
+      if (!_speechReady) {
+        _note('Voice is not available. Allow the microphone for TIM-POS in your phone settings, or type your question.');
+        return;
+      }
+      setState(() => _listening = true);
+      await _speech.listen(
+        onResult: (r) {
+          if (!mounted) return;
+          setState(() => _text.text = r.recognizedWords);
+          if (r.finalResult) {
+            setState(() => _listening = false);
+            _send(r.recognizedWords);
+          }
+        },
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _listening = false);
+      _note('Voice did not start. Type your question instead.');
+    }
   }
 
   Future<void> _send(String q) async {
@@ -51,12 +112,12 @@ class _AskScreenState extends State<AskScreen> {
         ? ['How much is sugar?', 'How did we do today?', 'What must I restock?']
         : ['How much is sugar?', 'Do we have rice?'];
     return Scaffold(
-      appBar: AppBar(title: const Text('Ask')),
+      appBar: AppBar(title: const Text('Team AI')),
       body: Column(children: [
         Expanded(
           child: _turns.isEmpty
               ? ListView(padding: const EdgeInsets.all(20), children: [
-                  const Text('Ask about your shop in plain words.', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  const Text('Ask Team AI about your shop in plain words, by typing or with the microphone.', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   const Text('It needs internet and can make mistakes, so check important numbers in the reports.'),
                   const SizedBox(height: 16),
@@ -94,10 +155,11 @@ class _AskScreenState extends State<AskScreen> {
                   textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.send,
                   onSubmitted: _send,
-                  decoration: const InputDecoration(hintText: 'Type your question', counterText: ''),
+                  decoration: InputDecoration(hintText: _listening ? 'Listening...' : 'Type or tap the microphone', counterText: ''),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
+              IconButton(onPressed: _busy ? null : _mic, tooltip: _listening ? 'Stop' : 'Speak', icon: Icon(_listening ? Icons.mic : Icons.mic_none, color: _listening ? Brand.coral : null)),
               IconButton.filled(onPressed: _busy ? null : () => _send(_text.text), icon: const Icon(Icons.send)),
             ]),
           ),

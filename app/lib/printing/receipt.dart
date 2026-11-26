@@ -46,6 +46,7 @@ class ReceiptData {
     required this.receiptNo, this.kind = 'sale', required this.completedAt, this.cashier, this.customer, required this.status,
     required this.saleCurrency, required this.subtotalMinor, required this.discountMinor, required this.taxMinor, required this.totalMinor,
     required this.lines, required this.payments, this.creditMinor = 0, required this.currencies, this.header, this.footer,
+    this.thanks = 'Thank you', this.showCashier = true, this.showCustomer = true,
   });
   final String shopName;
   final String? branchName, branchAddress, branchPhone, taxNumber;
@@ -62,11 +63,16 @@ class ReceiptData {
   final Map<String, Money> currencies;
   final String? header, footer;
 
+  /// The last line (empty prints nothing), and whether the cashier and customer names are printed. The shop chooses these.
+  final String? thanks;
+  final bool showCashier, showCustomer;
+
   ReceiptData asCopy() => ReceiptData(
         shopName: shopName, branchName: branchName, branchAddress: branchAddress, branchPhone: branchPhone, taxNumber: taxNumber,
         receiptNo: receiptNo, kind: 'copy', completedAt: completedAt, cashier: cashier, customer: customer, status: status,
         saleCurrency: saleCurrency, subtotalMinor: subtotalMinor, discountMinor: discountMinor, taxMinor: taxMinor, totalMinor: totalMinor,
         lines: lines, payments: payments, creditMinor: creditMinor, currencies: currencies, header: header, footer: footer,
+        thanks: thanks, showCashier: showCashier, showCustomer: showCustomer,
       );
 
   /// Reads the JSON shape the test vectors use (same field names as the TypeScript reference).
@@ -88,6 +94,7 @@ class ReceiptData {
         return MapEntry(k, Money(m['code'] as String, m['symbol'] as String, m['minor_units'] as int));
       }),
       header: s('header'), footer: s('footer'),
+      thanks: j.containsKey('thanks') ? s('thanks') : 'Thank you', showCashier: j['show_cashier'] as bool? ?? true, showCustomer: j['show_customer'] as bool? ?? true,
     );
   }
 }
@@ -263,8 +270,8 @@ List<Item> layoutReceipt(ReceiptData d, {required int width, required int utcOff
   rule();
   rows('Receipt', d.receiptNo, bold: true);
   rows('Date', dateText(d.completedAt, utcOffsetMinutes));
-  if (_has(d.cashier)) rows('Cashier', d.cashier!);
-  if (_has(d.customer)) rows('Customer', d.customer!);
+  if (d.showCashier && _has(d.cashier)) rows('Cashier', d.cashier!);
+  if (d.showCustomer && _has(d.customer)) rows('Customer', d.customer!);
   if (d.kind == 'copy') text('*** COPY ***', align: Align.center, bold: true);
   if (d.status == 'voided') text('*** VOIDED ***', align: Align.center, bold: true);
   rule();
@@ -308,7 +315,7 @@ List<Item> layoutReceipt(ReceiptData d, {required int width, required int utcOff
     rule();
     text(d.footer!, align: Align.center);
   }
-  text('Thank you', align: Align.center);
+  if (_has(d.thanks)) text(d.thanks!, align: Align.center);
   items.add(const Item.feed(3));
   if (cut) items.add(const Item.cut());
   return items;
@@ -430,8 +437,15 @@ Future<ReceiptData> loadReceipt(SqlDb db, String saleId, {String kind = 'sale'})
   final userId = s['user_id'] as String?;
   final customerId = s['customer_id'] as String?;
   final lines = await db.query('select * from sale_lines where sale_id = ? order by created_at, rowid', [saleId]);
+  // What the shop typed under Settings, Receipts wins over the shop and branch records.
+  Future<String?> typed(String k) async {
+    final v = await setting(k);
+    return v == null || v.trim().isEmpty ? null : v.trim();
+  }
+
   return ReceiptData(
-    shopName: (shop['name'] as String?) ?? '', branchName: branch?['name'] as String?, branchAddress: branch?['address'] as String?, branchPhone: branch?['phone'] as String?,
+    shopName: await typed('receipt_shop_name') ?? (shop['name'] as String?) ?? '', branchName: branch?['name'] as String?,
+    branchAddress: await typed('receipt_address') ?? branch?['address'] as String?, branchPhone: await typed('receipt_phone') ?? branch?['phone'] as String?,
     taxNumber: shop['tax_registered'] == 1 ? shop['tax_number'] as String? : null,
     receiptNo: s['receipt_no'] as String, kind: kind, completedAt: s['completed_at'] as int,
     cashier: userId == null ? null : (await get('select name from users where id = ?', [userId]))?['name'] as String?,
@@ -451,5 +465,33 @@ Future<ReceiptData> loadReceipt(SqlDb db, String saleId, {String kind = 'sale'})
           rateToSaleMicro: (p['rate_to_sale_micro'] as int?) ?? 1000000, reference: p['reference'] as String?, isChange: p['is_change'] == 1),
     ],
     creditMinor: owed, currencies: currencies, header: await setting('receipt_header'), footer: await setting('receipt_footer'),
+    thanks: await setting('receipt_thanks') ?? 'Thank you', showCashier: await setting('receipt_show_cashier') != '0', showCustomer: await setting('receipt_show_customer') != '0',
   );
+}
+
+/// A sample receipt as plain text, built from the receipt settings being edited, so the shop sees the result before saving.
+String sampleReceiptText(Map<String, String> settings, {required String shopName, int width = 32}) {
+  String? typed(String k) {
+    final v = (settings[k] ?? '').trim();
+    return v.isEmpty ? null : v;
+  }
+
+  final d = ReceiptData(
+    shopName: typed('receipt_shop_name') ?? shopName, branchAddress: typed('receipt_address'), branchPhone: typed('receipt_phone'),
+    receiptNo: 'A1-000123', completedAt: DateTime.now().millisecondsSinceEpoch, cashier: 'Rudo', customer: 'Mai Tendai', status: 'completed',
+    saleCurrency: 'USD', subtotalMinor: 950, discountMinor: 0, taxMinor: 0, totalMinor: 950,
+    lines: const [
+      ReceiptLine(description: 'Bread', qtyMilli: 2000, unitPriceMinor: 150, discountMinor: 0, taxRateBp: 0, lineTotalMinor: 300),
+      ReceiptLine(description: 'Rice 5kg', qtyMilli: 1000, unitPriceMinor: 650, discountMinor: 0, taxRateBp: 0, lineTotalMinor: 650),
+    ],
+    payments: const [
+      ReceiptPayment(methodName: 'Cash', currency: 'USD', amountMinor: 1000, rateToSaleMicro: 1000000, reference: null, isChange: false),
+      ReceiptPayment(methodName: 'Cash', currency: 'USD', amountMinor: 50, rateToSaleMicro: 1000000, reference: null, isChange: true),
+    ],
+    currencies: const {'USD': Money('USD', r'$', 2)},
+    header: typed('receipt_header'), footer: typed('receipt_footer'),
+    thanks: settings.containsKey('receipt_thanks') ? settings['receipt_thanks'] : 'Thank you',
+    showCashier: settings['receipt_show_cashier'] != '0', showCustomer: settings['receipt_show_customer'] != '0',
+  );
+  return toText(layoutReceipt(d, width: width, utcOffsetMinutes: DateTime.now().timeZoneOffset.inMinutes, cut: false), width);
 }

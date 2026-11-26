@@ -1,8 +1,8 @@
-# The AI assistant (online only, optional paid add-on)
+# Team AI (online only, optional paid add-on)
 
 What it does
 - **Suggest a name from a photo**: on the product screen, after you take a photo, tap "Suggest a name from the photo".
-- **Ask**: type a question such as "How much is sugar?" or "How did we do today?". Phones show it as the "Ask" tile; the owner sees it on the web dashboard under "Ask".
+- **Team AI** (a small floating button on every screen, including the till, plus a tile under Reports): type or speak a question such as "How much is sugar?" or "How did we do today?". Phones show it as the "Ask" tile; the owner sees it on the web dashboard under "Ask".
 - Selling never depends on it. Offline, these two features just say "You need internet".
 
 ## Turn it on (once, on your server)
@@ -20,7 +20,7 @@ Optional: `AI_MODEL` to change the model, `AI_MONTHLY_LIMIT` (questions per shop
 Never put a key in the app, in GitHub, or in a chat. Only the server holds it. With no key the feature shows "not switched on yet".
 
 ## Sell it per shop
-The assistant is a licence option called `ai`. In the vendor dashboard, open the shop, edit the licence features and add `ai` (comma separated, for example `ai`). Shops without it see "not part of your plan". You can also add `ai` to a Plan so new licences get it.
+Team AI is a plan feature called `ai`. In the vendor dashboard, tick "Team AI" on a plan (Plans page) or on one licence (shop page, Limits). Shops without it do not see the button. Voice needs the phone's microphone permission and Google's speech service; it does not understand Shona or Ndebele, so those questions are typed.
 
 ## Cost control
 - Each shop has a monthly limit; failed answers are not counted.

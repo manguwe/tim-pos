@@ -1,3 +1,4 @@
+import { SUGGESTED_PLANS } from '../features.ts';
 import type { Ctx } from '../context.ts';
 import {
   HttpError, asObject, int, optInt, optStr, str, strList,
@@ -7,6 +8,8 @@ import {
 } from '../crypto.ts';
 import { DAY_MS } from '../licence.ts';
 import { outstanding } from './billing.ts';
+import { pinResetCode } from '../crypto.ts';
+import { shopView } from '../reports/engine.ts';
 import { addMonths, newLicence, type LicenceRow, type TenantRow } from './licensing.ts';
 
 export interface VendorUser {
@@ -144,7 +147,8 @@ export function twoFactorEnable(ctx: Ctx, user: VendorUser, body: unknown): { tw
 const publicLicence = (l: LicenceRow) => ({
   id: l.id, tenant_id: l.tenant_id, plan_id: l.plan_id, key_hint: l.key_hint, status: l.status,
   issued_at: l.issued_at, expires_at: l.expires_at, grace_days: l.grace_days, max_offline_days: l.max_offline_days,
-  max_devices: l.max_devices, max_branches: l.max_branches, features: JSON.parse(l.features) as string[],
+  max_devices: l.max_devices, max_branches: l.max_branches, max_users: l.max_users, complimentary: l.complimentary === 1, trial: l.is_trial === 1,
+  features: JSON.parse(l.features) as string[],
 });
 
 export function createTenant(ctx: Ctx, user: VendorUser, body: unknown): TenantRow {
@@ -222,14 +226,16 @@ export function createPlan(ctx: Ctx, user: VendorUser, body: unknown): Obj {
     currency: (optStr(o, 'currency', 3) || 'USD').toUpperCase(),
     max_devices: optInt(o, 'max_devices', { min: 1, max: 1000 }) ?? 1,
     max_branches: optInt(o, 'max_branches', { min: 1, max: 1000 }) ?? 1,
+    max_users: optInt(o, 'max_users', { min: 0, max: 1000 }) ?? 0,
+    description: optStr(o, 'description', 300) ?? '',
     features: strList(o, 'features') ?? [],
   };
   try {
     ctx.db.run(
-      `insert into plans (id, name, one_time_fee_minor, monthly_fee_minor, currency, max_devices, max_branches, features, created_at)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `insert into plans (id, name, one_time_fee_minor, monthly_fee_minor, currency, max_devices, max_branches, max_users, description, features, created_at)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id, row.name, row.one_time_fee_minor, row.monthly_fee_minor, row.currency, row.max_devices, row.max_branches,
-      JSON.stringify(row.features), ctx.now(),
+      row.max_users, row.description, JSON.stringify(row.features), ctx.now(),
     );
   } catch {
     throw new HttpError(409, 'plan_exists', 'A plan with that name already exists');
@@ -244,6 +250,62 @@ export function listPlans(ctx: Ctx): Obj[] {
   }));
 }
 
+/** Edits a plan. Shops already on it get the new features and limits the next time their phones sync. */
+export function updatePlan(ctx: Ctx, user: VendorUser, id: string, body: unknown): Obj {
+  const cur = ctx.db.get<Obj & { features: string }>('select * from plans where id = ?', id);
+  if (!cur) throw new HttpError(404, 'not_found', 'Plan not found');
+  const o = asObject(body);
+  const next = {
+    name: o.name === undefined ? (cur.name as string) : str(o, 'name', { max: 80 }),
+    description: o.description === undefined ? (cur.description as string) : (optStr(o, 'description', 300) ?? ''),
+    one_time_fee_minor: optInt(o, 'one_time_fee_minor') ?? (cur.one_time_fee_minor as number),
+    monthly_fee_minor: optInt(o, 'monthly_fee_minor') ?? (cur.monthly_fee_minor as number),
+    currency: o.currency === undefined ? (cur.currency as string) : (optStr(o, 'currency', 3) || 'USD').toUpperCase(),
+    max_devices: optInt(o, 'max_devices', { min: 1, max: 1000 }) ?? (cur.max_devices as number),
+    max_branches: optInt(o, 'max_branches', { min: 1, max: 1000 }) ?? (cur.max_branches as number),
+    max_users: optInt(o, 'max_users', { min: 0, max: 1000 }) ?? (cur.max_users as number),
+    features: JSON.stringify(strList(o, 'features') ?? (JSON.parse(cur.features) as string[])),
+  };
+  const apply = o.apply_to_shops !== false;
+  try {
+    ctx.db.tx(() => {
+      ctx.db.run(
+        `update plans set name = ?, description = ?, one_time_fee_minor = ?, monthly_fee_minor = ?, currency = ?, max_devices = ?, max_branches = ?, max_users = ?, features = ? where id = ?`,
+        next.name, next.description, next.one_time_fee_minor, next.monthly_fee_minor, next.currency, next.max_devices, next.max_branches, next.max_users, next.features, id);
+      if (apply) ctx.db.run('update licences set max_devices = ?, max_branches = ?, max_users = ?, features = ? where plan_id = ?', next.max_devices, next.max_branches, next.max_users, next.features, id);
+    });
+  } catch {
+    throw new HttpError(409, 'plan_exists', 'A plan with that name already exists');
+  }
+  const shops = ctx.db.get<{ n: number }>('select count(*) as n from licences where plan_id = ?', id)?.n ?? 0;
+  audit(ctx, user.id, 'plan.update', null, { plan_id: id, applied_to_licences: apply ? shops : 0 });
+  return { ...listPlans(ctx).find((p) => p.id === id)!, licences_updated: apply ? shops : 0 };
+}
+
+/** Adds the three suggested plans that do not exist yet. Safe to press twice. */
+export function addSuggestedPlans(ctx: Ctx, user: VendorUser): Obj {
+  const added: string[] = [];
+  for (const p of SUGGESTED_PLANS) {
+    if (ctx.db.get('select 1 as x from plans where name = ?', p.name)) continue;
+    createPlan(ctx, user, p);
+    added.push(p.name);
+  }
+  return { added, plans: listPlans(ctx) };
+}
+
+/** Moves a shop's licence to another plan (upgrade or downgrade). The plan's features and limits replace the old ones; the end date stays. */
+export function changePlan(ctx: Ctx, user: VendorUser, licenceId: string, body: unknown): Obj {
+  const l = mustLicence(ctx, licenceId);
+  const planId = str(asObject(body), 'plan_id', { max: 64 });
+  const plan = ctx.db.get<{ name: string; max_devices: number; max_branches: number; max_users: number; features: string }>(
+    'select name, max_devices, max_branches, max_users, features from plans where id = ?', planId);
+  if (!plan) throw new HttpError(404, 'not_found', 'Plan not found');
+  ctx.db.run('update licences set plan_id = ?, max_devices = ?, max_branches = ?, max_users = ?, features = ? where id = ?',
+    planId, plan.max_devices, plan.max_branches, plan.max_users, plan.features, licenceId);
+  audit(ctx, user.id, 'licence.change_plan', l.tenant_id, { licence_id: licenceId, from: l.plan_id, to: planId });
+  return publicLicence(mustLicence(ctx, licenceId));
+}
+
 // ---- Licences ----
 
 export function issueLicence(ctx: Ctx, user: VendorUser, tenantId: string, body: unknown): Obj {
@@ -251,28 +313,37 @@ export function issueLicence(ctx: Ctx, user: VendorUser, tenantId: string, body:
   const o = asObject(body);
   const planId = optStr(o, 'plan_id', 64) || null;
   const plan = planId
-    ? ctx.db.get<{ max_devices: number; max_branches: number; features: string }>(
-        'select max_devices, max_branches, features from plans where id = ?', planId)
+    ? ctx.db.get<{ max_devices: number; max_branches: number; max_users: number; features: string }>(
+        'select max_devices, max_branches, max_users, features from plans where id = ?', planId)
     : undefined;
   if (planId && !plan) throw new HttpError(404, 'not_found', 'Plan not found');
   const months = optInt(o, 'months', { min: 1, max: 120 });
   const until = optInt(o, 'expires_at', { min: 1 });
-  if ((months === undefined) === (until === undefined)) {
+  if (o.trial !== true && (months === undefined) === (until === undefined)) {
     throw new HttpError(400, 'invalid_request', 'Give either months or expires_at');
+  }
+  const trial = o.trial === true;
+  if (trial) {
+    if (ctx.db.get('select 1 as x from licences where tenant_id = ? and is_trial = 1', tenantId)) {
+      throw new HttpError(409, 'trial_used', 'This shop has already had its free trial.');
+    }
   }
   const { licence, key } = ctx.db.tx(() =>
     newLicence(ctx, {
       tenantId,
       planId,
-      expiresAt: until ?? addMonths(ctx.now(), months as number),
-      graceDays: optInt(o, 'grace_days', { max: 365 }),
+      trial,
+      expiresAt: trial ? ctx.now() + TRIAL_DAYS * DAY_MS : until ?? addMonths(ctx.now(), months as number),
+      graceDays: trial ? 0 : optInt(o, 'grace_days', { max: 365 }),
       maxOfflineDays: optInt(o, 'max_offline_days', { min: 1, max: 365 }),
       maxDevices: optInt(o, 'max_devices', { min: 1, max: 1000 }) ?? plan?.max_devices ?? 1,
       maxBranches: optInt(o, 'max_branches', { min: 1, max: 1000 }) ?? plan?.max_branches ?? 1,
+      maxUsers: optInt(o, 'max_users', { min: 0, max: 1000 }) ?? plan?.max_users ?? 0,
+      complimentary: o.complimentary === true,
       features: strList(o, 'features') ?? (plan ? (JSON.parse(plan.features) as string[]) : []),
     }),
   );
-  audit(ctx, user.id, 'licence.issue', tenantId, { licence_id: licence.id, expires_at: licence.expires_at });
+  audit(ctx, user.id, 'licence.issue', tenantId, { licence_id: licence.id, expires_at: licence.expires_at, complimentary: licence.complimentary === 1, trial });
   // The key is shown here once. Only a keyed hash is stored, so it cannot be shown again.
   return { ...publicLicence(licence), key };
 }
@@ -311,13 +382,38 @@ export function updateLimits(ctx: Ctx, user: VendorUser, id: string, body: unkno
     max_branches: optInt(o, 'max_branches', { min: 1, max: 1000 }) ?? l.max_branches,
     grace_days: optInt(o, 'grace_days', { max: 365 }) ?? l.grace_days,
     max_offline_days: optInt(o, 'max_offline_days', { min: 1, max: 365 }) ?? l.max_offline_days,
+    max_users: optInt(o, 'max_users', { min: 0, max: 1000 }) ?? l.max_users,
+    complimentary: o.complimentary === undefined ? l.complimentary : o.complimentary === true ? 1 : 0,
     features: JSON.stringify(strList(o, 'features') ?? (JSON.parse(l.features) as string[])),
   };
   ctx.db.run(
-    'update licences set max_devices = ?, max_branches = ?, grace_days = ?, max_offline_days = ?, features = ? where id = ?',
-    next.max_devices, next.max_branches, next.grace_days, next.max_offline_days, next.features, id,
+    'update licences set max_devices = ?, max_branches = ?, grace_days = ?, max_offline_days = ?, features = ?, max_users = ?, complimentary = ? where id = ?',
+    next.max_devices, next.max_branches, next.grace_days, next.max_offline_days, next.features, next.max_users, next.complimentary, id,
   );
   audit(ctx, user.id, 'licence.limits', l.tenant_id, { licence_id: id });
+  return publicLicence(mustLicence(ctx, id));
+}
+
+export const TRIAL_DAYS = 10;
+
+/** Turns a trial into a paid licence: the plan's features and limits apply and the paid period starts now. */
+export function convertTrial(ctx: Ctx, user: VendorUser, id: string, body: unknown): Obj {
+  const l = mustLicence(ctx, id);
+  if (l.is_trial !== 1) throw new HttpError(409, 'not_trial', 'This licence is not a trial.');
+  const o = asObject(body);
+  const planId = optStr(o, 'plan_id', 64) || l.plan_id;
+  if (!planId) throw new HttpError(400, 'invalid_request', 'Choose a plan');
+  const plan = ctx.db.get<{ max_devices: number; max_branches: number; max_users: number; features: string }>(
+    'select max_devices, max_branches, max_users, features from plans where id = ?', planId);
+  if (!plan) throw new HttpError(404, 'not_found', 'Plan not found');
+  const months = optInt(o, 'months', { min: 1, max: 120 });
+  if (months === undefined) throw new HttpError(400, 'invalid_request', 'months is required');
+  ctx.db.run(
+    `update licences set is_trial = 0, plan_id = ?, expires_at = ?, grace_days = 30, max_devices = ?, max_branches = ?,
+       max_users = ?, features = ?, status = 'active' where id = ?`,
+    planId, addMonths(ctx.now(), months), plan.max_devices, plan.max_branches, plan.max_users, plan.features, id,
+  );
+  audit(ctx, user.id, 'licence.convert_trial', l.tenant_id, { licence_id: id, plan_id: planId, months });
   return publicLicence(mustLicence(ctx, id));
 }
 
@@ -328,6 +424,7 @@ export function rotateKey(ctx: Ctx, user: VendorUser, id: string): Obj {
     const created = newLicence(ctx, {
       tenantId: l.tenant_id, planId: l.plan_id, expiresAt: l.expires_at, graceDays: l.grace_days,
       maxOfflineDays: l.max_offline_days, maxDevices: l.max_devices, maxBranches: l.max_branches,
+      maxUsers: l.max_users, complimentary: l.complimentary === 1, trial: l.is_trial === 1,
       features: JSON.parse(l.features) as string[],
     });
     // Move the device slots to the replacement and retire the old row.
@@ -421,4 +518,29 @@ export function listAudit(ctx: Ctx, query: URLSearchParams): Obj[] {
     `select a.*, u.name as vendor_name, u.email as vendor_email from vendor_audit_log a
      left join vendor_users u on u.id = a.vendor_user_id order by a.created_at desc, a.rowid desc limit ?`, limit,
   ).map((r) => ({ ...r, detail: JSON.parse(r.detail) as unknown }));
+}
+
+// ---- Forgotten PIN ----
+
+/** The people set up in a shop, as the phones have synced them. Used to pick who forgot their PIN. */
+export function shopUsers(ctx: Ctx, tenantId: string): Obj {
+  mustTenant(ctx, tenantId);
+  const view = shopView(ctx.db, tenantId, ctx.now());
+  const users = view.db.prepare('select id, name from users where deleted_at is null order by name').all();
+  return { users };
+}
+
+/** Gives the code that lets one person on one phone choose a new PIN. Every code issued is logged. */
+export function issuePinResetCode(ctx: Ctx, user: VendorUser, deviceId: string, body: unknown): Obj {
+  const a = ctx.db.get<{ id: string; tenant_id: string; released_at: number | null; recovery_key: string }>(
+    'select id, tenant_id, released_at, recovery_key from activations where id = ?', deviceId);
+  if (!a) throw new HttpError(404, 'not_found', 'Device not found');
+  if (a.released_at !== null) throw new HttpError(409, 'device_released', 'This phone has been released');
+  const o = asObject(body);
+  const userId = optStr(o, 'user_id', 64);
+  const challenge = optStr(o, 'challenge', 8);
+  if (!userId) throw new HttpError(400, 'invalid_request', 'Choose the person');
+  if (!/^\d{8}$/.test(challenge ?? '')) throw new HttpError(400, 'invalid_request', 'The code on the phone has 8 digits');
+  audit(ctx, user.id, 'device.pin_reset_code', a.tenant_id, { device_id: deviceId, user_id: userId });
+  return { code: pinResetCode(a.recovery_key, challenge as string, userId) };
 }

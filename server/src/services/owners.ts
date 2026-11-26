@@ -167,14 +167,30 @@ export function report(ctx: Ctx, owner: OwnerUser, name: string, q: URLSearchPar
       // Products with their picture name, brand, selling price and what is on the shelf, for the owner's Products page.
       const cur = (db.prepare('select base_currency from shops where deleted_at is null limit 1').get() as { base_currency: string } | undefined)?.base_currency ?? 'USD';
       const products = db.prepare(
-        `select p.id, p.name, p.brand, p.image_ref, p.is_active, p.track_stock,
+        `select p.id, p.name, p.brand, p.image_ref, p.is_active, p.track_stock, p.category_id,
            (select pp.price_minor from product_prices pp where pp.product_id = p.id and pp.deleted_at is null
               and pp.tier_id is (select id from price_tiers where is_default = 1 and deleted_at is null) and pp.currency = ?
               order by pp.effective_from desc, pp.created_at desc limit 1) as price_minor,
            (select coalesce(sum(l.qty_milli), 0) from stock_levels l where l.product_id = p.id) as on_hand_milli
          from products p where p.deleted_at is null order by p.name limit 500`,
       ).all(cur);
-      return { ...base, base_currency: cur, products };
+      const departments = db.prepare('select c.id, c.name from categories c where c.deleted_at is null order by c.sort_order, c.name').all();
+      return { ...base, base_currency: cur, products, departments };
+    }
+    case 'departments': {
+      // Sales grouped by the department the product is in now. Products with none (or deleted lines) are grouped as "No department".
+      const rows = R.topProducts(db, range(q), { by: 'revenue', limit: 100000, ...filter(q) });
+      const names = new Map((db.prepare('select c.id, c.name from categories c where c.deleted_at is null').all() as { id: string; name: string }[]).map((c) => [c.id, c.name]));
+      const dept = new Map((db.prepare('select id, category_id from products').all() as { id: string; category_id: string | null }[]).map((p) => [p.id, p.category_id]));
+      const out = new Map<string, { department: string; qty_milli: number; revenue_minor: number; profit_minor: number }>();
+      for (const r of rows) {
+        const id = r.product_id ? dept.get(r.product_id) ?? null : null;
+        const name = (id && names.get(id)) || 'No department';
+        const cur = out.get(name) ?? { department: name, qty_milli: 0, revenue_minor: 0, profit_minor: 0 };
+        cur.qty_milli += r.qty_milli; cur.revenue_minor += r.revenue_minor; cur.profit_minor += r.profit_minor;
+        out.set(name, cur);
+      }
+      return { ...base, departments: [...out.values()].sort((a, b) => b.revenue_minor - a.revenue_minor) };
     }
     case 'branches': {
       const branches = db.prepare('select id, name from branches where deleted_at is null order by name').all();

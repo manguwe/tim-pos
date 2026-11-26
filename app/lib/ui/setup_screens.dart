@@ -5,6 +5,7 @@ import '../auth/auth_repository.dart' show AuthError;
 import '../selling/catalog.dart';
 import '../setup/setup_repository.dart';
 import 'barcode_screens.dart';
+import 'department_screens.dart';
 import 'product_pic.dart';
 import '../ai/ai_service.dart';
 import '../photos/photo_store.dart';
@@ -34,6 +35,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
   final _owner = TextEditingController();
   final _pin = TextEditingController();
   String _country = 'ZW';
+  String? _base;
   bool _vat = false;
   String? _error;
   bool _busy = false;
@@ -53,7 +55,7 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
     try {
       final r = await widget.controller.setupRepository()!.seedShop(
           name: _name.text, countryCode: _country, branchName: _branch.text, taxRegistered: _vat,
-          taxNumber: _taxNo.text.trim().isEmpty ? null : _taxNo.text.trim(), ownerName: _owner.text, ownerPin: _pin.text);
+          taxNumber: _taxNo.text.trim().isEmpty ? null : _taxNo.text.trim(), ownerName: _owner.text, ownerPin: _pin.text, baseCurrency: _base);
       if (r.ownerId != null) await widget.controller.signIn(r.ownerId!, _pin.text);
       if (mounted) Navigator.of(context).pop(true);
     } on SetupError catch (e) {
@@ -77,7 +79,15 @@ class _ShopSetupScreenState extends State<ShopSetupScreen> {
             initialValue: _country,
             decoration: const InputDecoration(labelText: 'Country', helperText: 'Sets the currencies, payment methods and tax rates to start with. You can change them later.'),
             items: const [DropdownMenuItem(value: 'ZW', child: Text('Zimbabwe (USD, ZiG)')), DropdownMenuItem(value: 'ZM', child: Text('Zambia (ZMW, USD)'))],
-            onChanged: (v) => setState(() => _country = v ?? 'ZW'),
+            onChanged: (v) => setState(() { _country = v ?? 'ZW'; _base = null; }),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey('base-$_country'),
+            initialValue: _base ?? presets[_country]!.baseCurrency,
+            decoration: const InputDecoration(labelText: 'Main currency', helperText: 'Prices and reports are kept in this currency. Choose US dollars if you price in dollars.'),
+            items: [for (final c in presets[_country]!.currencies) DropdownMenuItem(value: c['code'] as String, child: Text('${c['name']} (${c['code']})'))],
+            onChanged: (v) => setState(() => _base = v),
           ),
           const SizedBox(height: 12),
           TextField(controller: _owner, decoration: const InputDecoration(labelText: 'Owner name')),
@@ -103,6 +113,8 @@ class ProductsScreen extends StatefulWidget {
 class _ProductsScreenState extends State<ProductsScreen> {
   final _search = TextEditingController();
   List<Map<String, Object?>> _rows = [];
+  List<Map<String, Object?>> _cats = [];
+  String? _dept;
   TillSetup? _setup;
 
   SetupRepository get repo => widget.controller.setupRepository()!;
@@ -122,8 +134,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Future<void> _load() async {
     final db = widget.controller.database!.sql;
     final setup = await CatalogRepository(db).setup();
-    final rows = await repo.listProducts(_search.text);
-    if (mounted) setState(() { _setup = setup; _rows = rows; });
+    final rows = await repo.listProducts(_search.text, categoryId: _dept);
+    final cats = await repo.listCategories();
+    if (mounted) setState(() { _setup = setup; _rows = rows; _cats = cats; });
   }
 
   Future<void> _edit(String? id) async {
@@ -141,6 +154,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       floatingActionButton: FloatingActionButton.extended(onPressed: () => _edit(null), icon: const Icon(Icons.add), label: const Text('New product')),
       body: Column(children: [
         Padding(padding: const EdgeInsets.all(10), child: TextField(controller: _search, onChanged: (_) => _load(), decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search products'))),
+        DepartmentChips(departments: _cats, selected: _dept, showNone: true, onSelect: (d) { _dept = d; _load(); }),
         Expanded(
           child: _rows.isEmpty
               ? const Center(child: Text('No products yet. Tap New product.'))
@@ -153,7 +167,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     return ListTile(
                       leading: ProductPic(name: r['name'] as String, imageRef: r['image_ref'] as String?, size: 48),
                       title: Text(r['name'] as String, style: TextStyle(decoration: r['is_active'] == 0 ? TextDecoration.lineThrough : null)),
-                      subtitle: Text([if (r['brand'] != null) r['brand'], if (r['price_minor'] != null && cur != null) cur.format((r['price_minor'] as num).toInt())].join(' · ')),
+                      subtitle: Text([for (final c in _cats) if (c['id'] == r['category_id']) c['name'], if (r['brand'] != null) r['brand'], if (r['price_minor'] != null && cur != null) cur.format((r['price_minor'] as num).toInt())].join(' · ')),
                       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
                         Text(tracks ? '${_qty((r['on_hand_milli'] as num).toInt())} in stock' : 'Not counted'),
                         if (r['cost_minor'] != null && cur != null) Text('cost ${cur.format((r['cost_minor'] as num).toInt())}', style: Theme.of(context).textTheme.bodySmall),
@@ -189,6 +203,10 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   final _addQty = TextEditingController();
   final _addCost = TextEditingController();
   List<Map<String, Object?>> _taxes = [];
+  List<Map<String, Object?>> _cats = [];
+  List<({int minQtyMilli, int priceMinor})> _breaks = [];
+  bool _breaksDirty = false;
+  String? _catId;
   String? _taxId;
   bool _track = true;
   bool _active = true;
@@ -207,6 +225,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
 
   Future<void> _loadExisting() async {
     final taxes = await repo.taxClasses();
+    final cats = await repo.listCategories();
     Map<String, Object?>? p;
     int? price;
     String? barcode;
@@ -222,10 +241,13 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
       final bc = await db.query('select barcode from product_barcodes where product_id = ? and deleted_at is null limit 1', [widget.productId]);
       barcode = bc.isEmpty ? null : bc.first['barcode'] as String;
     }
+    final breaks = widget.productId == null ? <({int minQtyMilli, int priceMinor})>[] : await repo.listBreaks(widget.productId!);
     if (!mounted) return;
     setState(() {
       _taxes = taxes;
+      _cats = cats;
       if (p != null) {
+        _catId = p['category_id'] as String?;
         _name.text = p['name'] as String;
         _brand.text = (p['brand'] as String?) ?? '';
         _imageRef = p['image_ref'] as String?;
@@ -234,6 +256,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         _price.text = price == null ? '' : _plain(price);
         _cost.text = p['cost_minor'] == null ? '' : _plain((p['cost_minor'] as num).toInt());
         _taxId = p['tax_class_id'] as String?;
+        _breaks = breaks;
         _track = p['track_stock'] == 1;
         _active = p['is_active'] == 1;
         _allowNeg = p['allow_negative_stock'] == 1;
@@ -246,6 +269,85 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   String _plain(int minor) {
     final s = minor.toString().padLeft(cur.minorUnits + 1, '0');
     return cur.minorUnits == 0 ? s : '${s.substring(0, s.length - cur.minorUnits)}.${s.substring(s.length - cur.minorUnits)}';
+  }
+
+  /// Pack total and number of items in it, then fills in the cost of one.
+  Future<void> _packHelper(TextEditingController target) async {
+    final total = TextEditingController();
+    final count = TextEditingController();
+    String? err;
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const Text('Price for 1 from a pack'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: total, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'What you paid for the whole pack (${cur.code})')),
+            TextField(controller: count, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'How many are in the pack')),
+            if (err != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(err!, style: const TextStyle(color: Brand.coral))),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final t = cur.parse(total.text);
+                final n = parseQty(count.text);
+                if (t == null || n == null || n <= 0) {
+                  setD(() => err = 'Enter the pack price and how many are in it.');
+                  return;
+                }
+                Navigator.pop(ctx, unitCostFromPack(t, n));
+              },
+              child: const Text('Use this'),
+            ),
+          ],
+        ),
+      ),
+    );
+    total.dispose();
+    count.dispose();
+    if (result != null && mounted) setState(() => target.text = _plain(result));
+  }
+
+  Future<void> _addBreak() async {
+    final qty = TextEditingController();
+    final price = TextEditingController();
+    String? err;
+    final r = await showDialog<({int minQtyMilli, int priceMinor})>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const Text('Quantity price'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: qty, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'When they buy this many or more', hintText: '3')),
+            TextField(controller: price, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Price for each (${cur.code})')),
+            if (err != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(err!, style: const TextStyle(color: Brand.coral))),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final q = parseQty(qty.text);
+                final pr = cur.parse(price.text);
+                if (q == null || q <= 1000 || pr == null) {
+                  setD(() => err = 'Enter a quantity of 2 or more and the price for each.');
+                  return;
+                }
+                Navigator.pop(ctx, (minQtyMilli: q, priceMinor: pr));
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+    qty.dispose();
+    price.dispose();
+    if (r == null || !mounted) return;
+    setState(() {
+      _breaks = [..._breaks.where((b) => b.minQtyMilli != r.minQtyMilli), r]..sort((a, b) => a.minQtyMilli.compareTo(b.minQtyMilli));
+      _breaksDirty = true;
+    });
   }
 
   Future<void> _save() async {
@@ -264,8 +366,9 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     try {
       final id = await repo.saveProduct(ProductInput(
         id: widget.productId, name: _name.text, brand: _brand.text, imageRef: _imageRef, sku: _sku.text, barcode: _barcode.text, priceMinor: price, costMinor: cost,
-        taxClassId: _taxId, trackStock: _track, allowNegativeStock: _allowNeg, isActive: _active,
+        taxClassId: _taxId, categoryId: _catId ?? '', trackStock: _track, allowNegativeStock: _allowNeg, isActive: _active,
       ));
+      if (_breaksDirty) await repo.saveBreaks(id, _breaks);
       if (widget.productId == null && openQty != null && openQty > 0) {
         await repo.receiveStock(branchId: widget.setup.branchId, productId: id, qtyMilli: openQty, unitCostMinor: cost, opening: true);
       }
@@ -378,6 +481,28 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         const SizedBox(height: 16),
         TextField(controller: _name, onChanged: (_) => setState(() {}), textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Product name', hintText: 'For example: Rice 5kg')),
         const SizedBox(height: 16),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              key: ValueKey('dept-${_catId ?? ''}-${_cats.length}'),
+              initialValue: _cats.any((c) => c['id'] == _catId) ? _catId : null,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Department - optional', helperText: 'For example Groceries or Accessories'),
+              items: [for (final c in _cats) DropdownMenuItem(value: c['id'] as String, child: Text(c['name'] as String))],
+              onChanged: (v) => setState(() => _catId = v),
+            ),
+          ),
+          IconButton(
+            tooltip: 'New department',
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () async {
+              await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DepartmentsScreen(repo: repo)));
+              final cats = await repo.listCategories();
+              if (mounted) setState(() => _cats = cats);
+            },
+          ),
+        ]),
+        const SizedBox(height: 16),
         TextField(controller: _brand, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Brand - optional', hintText: 'For example: Mr Rice', helperText: 'Helps you tell apart the same item from different brands')),
         const SizedBox(height: 16),
         TextField(
@@ -391,6 +516,22 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(labelText: 'Buying price (${cur.code}) - optional', helperText: 'What you paid for 1. It lets the app show your profit.', prefixText: '${cur.code} '),
         ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(icon: const Icon(Icons.calculate_outlined), label: const Text('Bought a pack? Work out the price for 1'), onPressed: () => _packHelper(_cost)),
+        ),
+        const SizedBox(height: 8),
+        const Text('Quantity prices', style: TextStyle(fontWeight: FontWeight.w800)),
+        const Text('Sell cheaper when a customer buys more, for example 3 or more at 4.00 each. Your profit is worked out from the price actually charged.', style: TextStyle(color: Colors.black54, fontSize: 12)),
+        for (var i = 0; i < _breaks.length; i++)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text('${_breaks[i].minQtyMilli ~/ 1000}${_breaks[i].minQtyMilli % 1000 == 0 ? '' : '.${(_breaks[i].minQtyMilli % 1000).toString().padLeft(3, '0')}'} or more: ${cur.code} ${_plain(_breaks[i].priceMinor)} each'),
+            trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() { _breaks = [..._breaks]..removeAt(i); _breaksDirty = true; })),
+          ),
+        if (_breaks.length < 6)
+          Align(alignment: Alignment.centerLeft, child: TextButton.icon(icon: const Icon(Icons.add), label: const Text('Add quantity price'), onPressed: _addBreak)),
         if (isNew && _track) ...[
           const SizedBox(height: 16),
           TextField(controller: _openQty, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'How many do you have now? - optional', helperText: 'The stock on your shelf today')),
@@ -444,7 +585,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
             const SizedBox(width: 12),
             Expanded(child: TextField(controller: _addCost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Price paid for 1', helperText: cur.code))),
           ]),
-          const SizedBox(height: 8),
+          TextButton.icon(icon: const Icon(Icons.calculate_outlined), label: const Text('Bought a pack? Work out the price for 1'), onPressed: () => _packHelper(_addCost)),
           OutlinedButton(onPressed: _receive, child: const Text('Add to my stock')),
         ],
       ]),

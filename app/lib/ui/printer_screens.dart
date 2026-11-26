@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../printing/print_service.dart';
 import '../printing/printer_transport.dart';
+import '../share/whatsapp.dart';
 import 'theme.dart';
 
 /// The receipt on screen, with print and reprint (a reprint is marked COPY).
@@ -53,6 +54,14 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     }
   }
 
+  /// Opens WhatsApp with the receipt typed in. To the customer's number when the sale has one, otherwise the person picks who.
+  Future<void> _share() async {
+    final t = await widget.printing.shareTarget(widget.saleId);
+    if (!mounted) return;
+    final body = '```\n${_text!.trimRight()}\n```';
+    await openOrCopy(context, whatsappLink(body, phone: t.phone, countryCode: t.country), _text!);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -80,6 +89,14 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                   icon: const Icon(Icons.copy),
                   label: const Text('Copy text'),
                   onPressed: _text == null ? null : () => Clipboard.setData(ClipboardData(text: _text!)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.chat),
+                  label: const Text('WhatsApp'),
+                  onPressed: _text == null ? null : _share,
                 ),
               ),
               const SizedBox(width: 10),

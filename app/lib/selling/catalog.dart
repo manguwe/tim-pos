@@ -15,6 +15,7 @@ class ProductHit {
     required this.allowNegative,
     this.imageRef,
     this.brand,
+    this.breaks = const [],
   });
   final String id;
   final String name;
@@ -30,7 +31,29 @@ class ProductHit {
   final String? imageRef;
   final String? brand;
 
+  /// Quantity prices in the sale currency, lowest quantity first: from [PriceBreak.minQtyMilli] up, each unit costs [PriceBreak.priceMinor].
+  final List<PriceBreak> breaks;
+
   bool get canSell => unitPriceMinor != null;
+
+  /// The price of one unit when [qtyMilli] are bought.
+  int? unitPriceFor(int qtyMilli) {
+    int? best;
+    var bestMin = 0;
+    for (final b in breaks) {
+      if (b.minQtyMilli <= qtyMilli && b.minQtyMilli >= bestMin) {
+        best = b.priceMinor;
+        bestMin = b.minQtyMilli;
+      }
+    }
+    return best ?? unitPriceMinor;
+  }
+}
+
+class PriceBreak {
+  const PriceBreak(this.minQtyMilli, this.priceMinor);
+  final int minQtyMilli;
+  final int priceMinor;
 }
 
 /// Reads the catalogue for the till. Price rules are the same as the selling engine's (selling.dart):
@@ -43,15 +66,21 @@ class CatalogRepository {
   static const int maxResults = 40;
 
   /// Search by name or SKU (any part of it). Short queries still work; an empty query lists the first products by name.
-  Future<List<ProductHit>> search(String query, {required String branchId, required String currency, String? tierId}) async {
+  Future<List<ProductHit>> search(String query, {required String branchId, required String currency, String? tierId, String? categoryId}) async {
     final like = '%${query.trim().replaceAll('%', '').replaceAll('_', '')}%';
     final rows = await db.query(
       "select id from products where deleted_at is null and is_active = 1 and kind <> 'variant_parent' "
-      "and (name like ? or sku like ?) order by name limit ?",
-      [like, like, maxResults],
+      "and (name like ? or sku like ?)${categoryId == null ? '' : ' and category_id = ?'} order by name limit ?",
+      [like, like, if (categoryId != null) categoryId, maxResults],
     );
     return _hits(rows.map((r) => r['id'] as String), branchId, currency, tierId);
   }
+
+  /// Departments that have at least one product you can sell, for the chips on the till.
+  Future<List<Map<String, Object?>>> departments() => db.query(
+        'select c.id, c.name from categories c where c.deleted_at is null and exists '
+        "(select 1 from products p where p.category_id = c.id and p.deleted_at is null and p.is_active = 1) order by c.sort_order, c.name",
+      );
 
   /// A scanned code resolves to one product in a single lookup.
   Future<ProductHit?> byBarcode(String code, {required String branchId, required String currency, String? tierId}) async {
@@ -95,9 +124,41 @@ class CatalogRepository {
         allowNegative: p['allow_negative_stock'] == 1,
         imageRef: p['image_ref'] as String?,
         brand: p['brand'] as String?,
+        breaks: await _breaks(id, currency, base, tierId),
       ));
     }
     return out;
+  }
+
+  /// Quantity prices for the till: those set in the sale currency, else the base-currency ones converted. A customer tier's own break
+  /// replaces the shop-wide break at the same quantity.
+  Future<List<PriceBreak>> _breaks(String productId, String currency, String? base, String? tierId) async {
+    Future<Map<int, int>> find(String cur) async {
+      final rows = await db.query(
+        'select min_qty_milli, price_minor, tier_id from price_breaks where product_id = ? and currency = ? and deleted_at is null order by created_at',
+        [productId, cur],
+      );
+      final out = <int, int>{};
+      for (final r in rows) {
+        if (r['tier_id'] == null) out[(r['min_qty_milli'] as num).toInt()] = (r['price_minor'] as num).toInt();
+      }
+      for (final r in rows) {
+        if (r['tier_id'] != null && r['tier_id'] == tierId) out[(r['min_qty_milli'] as num).toInt()] = (r['price_minor'] as num).toInt();
+      }
+      return out;
+    }
+
+    var found = await find(currency);
+    if (found.isEmpty && base != null && base != currency) {
+      final inBase = await find(base);
+      final conv = <int, int>{};
+      for (final e in inBase.entries) {
+        final c = await convert(e.value, base, currency);
+        if (c != null) conv[e.key] = c;
+      }
+      found = conv;
+    }
+    return [for (final k in (found.keys.toList()..sort())) PriceBreak(k, found[k]!)];
   }
 
   Future<int?> _price(String productId, String currency, String? base, String? tierId, int now) async {

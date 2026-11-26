@@ -3,6 +3,7 @@ import { generateSecrets, loadConfig } from './config.ts';
 import { rawPublicKey } from './crypto.ts';
 import { makeCtx } from './context.ts';
 import { openDb } from './db.ts';
+import { backupNow } from './backup.ts';
 import { createVendorUser } from './services/vendor.ts';
 
 const [cmd, ...args] = process.argv.slice(2);
@@ -21,6 +22,14 @@ async function readPassword(): Promise<string> {
 }
 
 switch (cmd) {
+  case 'backup': {
+    const config = loadConfig();
+    const db = openDb(config.dbPath);
+    const dir = flag('to') ?? config.backupDir ?? './data/backups';
+    console.log(`Backup written: ${backupNow(db, dir, config.backupKeep ?? 14, Date.now())}`);
+    db.close();
+    break;
+  }
   case 'gen-secrets': {
     const s = generateSecrets();
     const pem = (x: string) => x.trim().replace(/\n/g, '\\n');

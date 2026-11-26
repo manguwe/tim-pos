@@ -10,7 +10,8 @@ class CartItem {
   int qtyMilli;
   int discountMinor;
 
-  int get gross => lineAmount(qtyMilli, hit.unitPriceMinor ?? 0);
+  int get unitPrice => hit.unitPriceFor(qtyMilli) ?? 0;
+  int get gross => lineAmount(qtyMilli, unitPrice);
   TaxSplit get split => taxSplit(gross - discountMinor, hit.taxRateBp, hit.taxInclusive);
 }
 

@@ -6,6 +6,8 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import 'settings/app_prefs.dart';
 import 'ai/ai_service.dart';
+import 'expenses/expense_repository.dart';
+import 'rates/rates_service.dart';
 import 'auth/auth_repository.dart';
 import 'barcodes/barcode_repository.dart';
 import 'config.dart';
@@ -220,6 +222,12 @@ class AppController extends ChangeNotifier {
 
   bool can(String permission) => currentUser?.can(permission) ?? false;
 
+  /// Live exchange rates from the server, with the last good copy kept on the phone.
+  RatesService? ratesService() {
+    final db = database;
+    return db == null ? null : RatesService(api, db.sql);
+  }
+
   /// Set-up and catalogue writes for this phone, or null until the licence and database are ready.
   SetupRepository? setupRepository() {
     final db = database;
@@ -253,6 +261,10 @@ class AppController extends ChangeNotifier {
     return FiscalRepository(db: db.sql, shopId: p.shopId, deviceId: p.deviceId, userId: currentUser?.id);
   }
 
+  bool get aiLicensed => licence.payload?.hasFeature('ai') ?? false;
+  bool get customersLicensed => licence.payload?.hasFeature('customers') ?? false;
+  bool get purchasingLicensed => licence.payload?.hasFeature('purchasing') ?? false;
+  int get maxUsers => licence.payload?.maxUsers ?? 0;
   bool get zimraLicensed => licence.payload?.hasFeature('zimra') ?? false;
 
   SettingsRepository? settingsRepository() {
@@ -260,6 +272,13 @@ class AppController extends ChangeNotifier {
     final p = licence.payload;
     if (db == null || p == null || !licence.state.canWork) return null;
     return SettingsRepository(db: db.sql, shopId: p.shopId, deviceId: p.deviceId, userId: currentUser?.id);
+  }
+
+  ExpenseRepository? expenseRepository() {
+    final db = database;
+    final p = licence.payload;
+    if (db == null || p == null || !licence.state.canWork) return null;
+    return ExpenseRepository(db: db.sql, shopId: p.shopId, deviceId: p.deviceId, userId: currentUser?.id);
   }
 
   StockRepository? stockRepository() {

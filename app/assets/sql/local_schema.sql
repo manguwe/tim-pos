@@ -428,6 +428,37 @@ create trigger "product_prices_log_upd" after update on "product_prices" when (s
 begin insert into change_log (table_name, row_id, op, version, updated_at, created_at) values ('product_prices', new.id,
   case when new.deleted_at is not null and old.deleted_at is null then 'delete' else 'update' end, new.version, new.updated_at, new.updated_at); end;
 -- ##
+create table "price_breaks" (
+  "id" text primary key,
+  "shop_id" text not null,
+  "created_at" integer not null,
+  "created_by" text,
+  "device_id" text,
+  "updated_at" integer not null,
+  "version" integer not null default 1 check (version >= 1),
+  "deleted_at" integer,
+  "product_id" text not null references "products" (id) deferrable initially deferred,
+  "tier_id" text references "price_tiers" (id) deferrable initially deferred,
+  "currency" text not null,
+  "min_qty_milli" integer not null check ("min_qty_milli" is null or typeof("min_qty_milli") = 'integer'),
+  "price_minor" integer not null check ("price_minor" is null or typeof("price_minor") = 'integer'),
+  check (min_qty_milli > 0),
+  check (price_minor >= 0)
+);
+-- ##
+create index "price_breaks_ix1" on "price_breaks" ("product_id", "currency");
+-- ##
+create trigger "price_breaks_no_hard_delete" before delete on "price_breaks" when (select applying from sync_state where id = 1) = 0 begin select raise(abort, 'soft delete only: set deleted_at'); end;
+-- ##
+create trigger "price_breaks_version_guard" before update on "price_breaks" when (select applying from sync_state where id = 1) = 0 and new.version <= old.version begin select raise(abort, 'version must increase on every edit'); end;
+-- ##
+create trigger "price_breaks_log_ins" after insert on "price_breaks" when (select applying from sync_state where id = 1) = 0
+begin insert into change_log (table_name, row_id, op, version, updated_at, created_at) values ('price_breaks', new.id, 'insert', new.version, new.updated_at, new.created_at); end;
+-- ##
+create trigger "price_breaks_log_upd" after update on "price_breaks" when (select applying from sync_state where id = 1) = 0
+begin insert into change_log (table_name, row_id, op, version, updated_at, created_at) values ('price_breaks', new.id,
+  case when new.deleted_at is not null and old.deleted_at is null then 'delete' else 'update' end, new.version, new.updated_at, new.updated_at); end;
+-- ##
 create table "promotions" (
   "id" text primary key,
   "shop_id" text not null,

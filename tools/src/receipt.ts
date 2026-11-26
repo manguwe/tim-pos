@@ -22,6 +22,8 @@ export interface ReceiptData {
   lines: ReceiptLine[]; payments: ReceiptPayment[]; credit_minor: number;
   currencies: Record<string, Money>;
   header: string | null; footer: string | null;
+  /** The shop's choices from Settings, Receipts. Missing means the usual: 'Thank you', and both names printed. */
+  thanks?: string | null; show_cashier?: boolean; show_customer?: boolean;
 }
 export interface LayoutOptions { width: number; utc_offset_minutes: number; open_drawer?: boolean; cut?: boolean }
 
@@ -129,8 +131,8 @@ export function layoutReceipt(d: ReceiptData, o: LayoutOptions): Item[] {
   rule();
   rows('Receipt', d.receipt_no, true);
   rows('Date', dateText(d.completed_at, o.utc_offset_minutes));
-  if (d.cashier) rows('Cashier', d.cashier);
-  if (d.customer) rows('Customer', d.customer);
+  if (d.show_cashier !== false && d.cashier) rows('Cashier', d.cashier);
+  if (d.show_customer !== false && d.customer) rows('Customer', d.customer);
   if (d.kind === 'copy') text('*** COPY ***', 'center', true);
   if (d.status === 'voided') text('*** VOIDED ***', 'center', true);
   rule();
@@ -171,7 +173,8 @@ export function layoutReceipt(d: ReceiptData, o: LayoutOptions): Item[] {
   if (d.credit_minor > 0) { rule(); rows('On account', money(d.credit_minor), true); }
 
   if (d.footer) { rule(); text(d.footer, 'center'); }
-  text('Thank you', 'center');
+  const thanks = d.thanks === undefined ? 'Thank you' : d.thanks;
+  if (thanks) text(thanks, 'center');
   items.push({ t: 'feed', n: 3 });
   if (o.cut !== false) items.push({ t: 'cut' });
   return items;
@@ -253,8 +256,11 @@ export function loadReceipt(db: DatabaseSync, saleId: string, o: { kind?: 'sale'
   for (const c of all('select code, symbol, minor_units from currencies')) currencies[c.code] = { code: c.code, symbol: c.symbol ?? c.code, minor_units: c.minor_units };
   const payments = all('select * from sale_payments where sale_id = ? order by is_change, created_at, rowid', saleId);
   const owed = (get("select coalesce(sum(amount_minor), 0) as c from customer_ledger where ref_type = 'sale' and ref_id = ? and type = 'credit_sale'", saleId)?.c as number) ?? 0;
+  // What the shop typed under Settings, Receipts wins over the shop and branch records.
+  const typed = (k: string) => { const v = setting(k); return v && v.trim() ? v.trim() : null; };
   return {
-    shop_name: shop.name ?? '', branch_name: branch?.name ?? null, branch_address: branch?.address ?? null, branch_phone: branch?.phone ?? null,
+    shop_name: typed('receipt_shop_name') ?? shop.name ?? '', branch_name: branch?.name ?? null,
+    branch_address: typed('receipt_address') ?? branch?.address ?? null, branch_phone: typed('receipt_phone') ?? branch?.phone ?? null,
     tax_number: shop.tax_registered === 1 ? shop.tax_number ?? null : null,
     receipt_no: s.receipt_no, kind: o.kind ?? 'sale', completed_at: s.completed_at,
     cashier: s.user_id ? (get('select name from users where id = ?', s.user_id)?.name ?? null) : null,
@@ -265,5 +271,6 @@ export function loadReceipt(db: DatabaseSync, saleId: string, o: { kind?: 'sale'
     })),
     payments: payments.map((p) => ({ method_name: methods[p.method_code] ?? p.method_code, currency: p.currency, amount_minor: p.amount_minor, rate_to_sale_micro: p.rate_to_sale_micro ?? 1_000_000, reference: p.reference ?? null, is_change: p.is_change === 1 })),
     credit_minor: owed, currencies, header: setting('receipt_header'), footer: setting('receipt_footer'),
+    thanks: setting('receipt_thanks') ?? 'Thank you', show_cashier: setting('receipt_show_cashier') !== '0', show_customer: setting('receipt_show_customer') !== '0',
   };
 }

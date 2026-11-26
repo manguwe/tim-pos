@@ -32,6 +32,11 @@ for perm, extra in [('android.permission.BLUETOOTH', ' android:maxSdkVersion="30
                     ('android.permission.BLUETOOTH_CONNECT', ''), ('android.permission.BLUETOOTH_SCAN', ' android:usesPermissionFlags="neverForLocation"')]:
     if perm not in m:
         m = m.replace('<application', '<uses-permission android:name="' + perm + '"' + extra + '/>\n    <application', 1)
+if 'android.permission.RECORD_AUDIO' not in m:
+    m = m.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application', 1)
+# Voice questions use the phone's own speech recogniser. Android 11+ needs to be told it may look for one.
+if 'android.speech.RecognitionService' not in m:
+    m = m.replace('<application', '<queries>\n        <intent><action android:name="android.speech.RecognitionService"/></intent>\n    </queries>\n    <application', 1)
 if 'usesCleartextTraffic="true"' in m:
     sys.exit('cleartext traffic is on; the server must use HTTPS')
 manifest.write_text(m)

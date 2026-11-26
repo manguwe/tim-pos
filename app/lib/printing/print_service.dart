@@ -64,6 +64,15 @@ class PrintService {
     return toText(layoutReceipt(data, width: w, utcOffsetMinutes: _offset, cut: false), w);
   }
 
+  /// The phone number and shop country for a sale's customer, so the receipt can be sent to them on WhatsApp.
+  Future<({String? phone, String country})> shareTarget(String saleId) async {
+    final r = await db.query(
+      'select c.phone as phone from sales s left join customers c on c.id = s.customer_id where s.id = ?', [saleId]);
+    final shop = await db.query('select country_code from shops where deleted_at is null limit 1');
+    final phone = r.isEmpty ? null : r.first['phone'] as String?;
+    return (phone: (phone ?? '').trim().isEmpty ? null : phone, country: shop.isEmpty ? 'ZW' : (shop.first['country_code'] as String? ?? 'ZW'));
+  }
+
   /// The bytes for the printer. The drawer opens only for a first print of a sale paid with a drawer method (cash).
   Future<Uint8List> bytes(String saleId, {bool copy = false}) async {
     final p = await printer();

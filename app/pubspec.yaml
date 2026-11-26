@@ -18,6 +18,8 @@ dependencies:
   http: ^1.2.0
   # Opens WhatsApp, the dialer, SMS, email and the website from the About page.
   url_launcher: ^6.3.0
+  # Voice questions for Team AI. Uses the phone's own speech recogniser.
+  speech_to_text: ^7.0.0
   path: ^1.9.0
   # HMAC-SHA256 for PIN hashing.
   crypto: ^3.0.3

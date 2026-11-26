@@ -259,6 +259,26 @@ create table "product_prices" (
 -- ##
 create index "product_prices_ix1" on "product_prices" ("product_id", "tier_id", "currency", "effective_from");
 -- ##
+create table "price_breaks" (
+  "id" text primary key,
+  "shop_id" text not null,
+  "created_at" integer not null,
+  "created_by" text,
+  "device_id" text,
+  "updated_at" integer not null,
+  "version" integer not null default 1 check (version >= 1),
+  "deleted_at" integer,
+  "product_id" text not null references "products" (id) deferrable initially deferred,
+  "tier_id" text references "price_tiers" (id) deferrable initially deferred,
+  "currency" text not null,
+  "min_qty_milli" integer not null check ("min_qty_milli" is null or typeof("min_qty_milli") = 'integer'),
+  "price_minor" integer not null check ("price_minor" is null or typeof("price_minor") = 'integer'),
+  check (min_qty_milli > 0),
+  check (price_minor >= 0)
+);
+-- ##
+create index "price_breaks_ix1" on "price_breaks" ("product_id", "currency");
+-- ##
 create table "promotions" (
   "id" text primary key,
   "shop_id" text not null,

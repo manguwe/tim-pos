@@ -5,7 +5,7 @@ import { Link } from '../router.tsx';
 import { Button, Empty, ErrorBox, Field, Loading, Page, errorText, useAsync, useToast } from '../ui.tsx';
 import { PERIODS, localIso, offsetMinutes, rangeFor, type PeriodId, type Range } from './period.ts';
 import {
-  ownerApi, ownerPhoto, setOwnerSession, type CatalogueRow, type CashUpRow, type DayRow, type ExpiringBatch, type Meta, type OutOfStock, type OwnerSession, type ProductRow,
+  ownerApi, ownerPhoto, setOwnerSession, type CatalogueRow, type DepartmentRow, type CashUpRow, type DayRow, type ExpiringBatch, type Meta, type OutOfStock, type OwnerSession, type ProductRow,
   type Receivables, type SalesSummary, type StockValue, type TakingRow,
 } from './api.ts';
 import { createContext, useContext } from 'react';
@@ -147,8 +147,7 @@ export function Products() {
   const branches = useBranches();
   const [by, setBy] = useState<'revenue' | 'qty' | 'profit'>('revenue');
   const p = useReport<{ products: ProductRow[] }>('products', { by, limit: 30 });
-  const base = 'USD';
-  void base;
+  const d = useReport<{ departments: DepartmentRow[] }>('departments', {});
   return (
     <Page title="Best sellers">
       <FilterBar branches={branches} />
@@ -165,6 +164,15 @@ export function Products() {
           <thead><tr><th>#</th><th>Product</th><th className="num">Sold</th><th className="num">Takings</th><th className="num">Cost</th><th className="num">Profit</th></tr></thead>
           <tbody>{p.data.products.map((x, i) => <tr key={x.product_id ?? x.name}><td>{i + 1}</td><td>{x.name || 'Unnamed item'}</td><td className="num">{qty(x.qty_milli)}</td><td className="num">{(x.revenue_minor / 100).toFixed(2)}</td><td className="num">{(x.cost_minor / 100).toFixed(2)}</td><td className="num">{(x.profit_minor / 100).toFixed(2)}</td></tr>)}</tbody>
         </table></div>
+      )}
+      {d.data && d.data.departments.length > 0 && (
+        <>
+          <h2 className="section">By department</h2>
+          <div className="card flush scroll-x"><table>
+            <thead><tr><th>Department</th><th className="num">Sold</th><th className="num">Takings</th><th className="num">Profit</th></tr></thead>
+            <tbody>{d.data.departments.map((x) => <tr key={x.department}><td>{x.department}</td><td className="num">{qty(x.qty_milli)}</td><td className="num">{(x.revenue_minor / 100).toFixed(2)}</td><td className="num">{(x.profit_minor / 100).toFixed(2)}</td></tr>)}</tbody>
+          </table></div>
+        </>
       )}
       <p className="muted small">Amounts are in the shop's main currency. Items sold without a cost price show a profit equal to their takings.</p>
       <Freshness meta={p.data} />
@@ -198,12 +206,23 @@ function ProductPhoto({ name, imageRef }: { name: string; imageRef: string | nul
 
 export function Catalogue() {
   const [q, setQ] = useState('');
-  const p = useReport<{ products: CatalogueRow[]; base_currency: string }>('catalogue', {}, false);
-  const rows = (p.data?.products ?? []).filter((x) => `${x.name} ${x.brand ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const [dept, setDept] = useState('');
+  const p = useReport<{ products: CatalogueRow[]; base_currency: string; departments: { id: string; name: string }[] }>('catalogue', {}, false);
+  const deptName = (id: string | null) => p.data?.departments.find((d) => d.id === id)?.name ?? '';
+  const rows = (p.data?.products ?? [])
+    .filter((x) => `${x.name} ${x.brand ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()))
+    .filter((x) => dept === '' || (dept === '__none__' ? !x.category_id || !deptName(x.category_id) : x.category_id === dept));
   return (
     <Page title="Products">
       <div className="toolbar">
         <input type="search" aria-label="Find a product" placeholder="Find a product" value={q} onChange={(e) => setQ(e.target.value)} />
+        {(p.data?.departments.length ?? 0) > 0 && (
+          <select aria-label="Department" value={dept} onChange={(e) => setDept(e.target.value)}>
+            <option value="">All departments</option>
+            {p.data!.departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            <option value="__none__">No department</option>
+          </select>
+        )}
       </div>
       {p.error && <ErrorBox error={p.error} retry={p.reload} />}
       {!p.data && !p.error && <Loading />}
@@ -216,7 +235,7 @@ export function Catalogue() {
             <div key={x.id} className={`card pcard${x.is_active === 0 ? ' pcard-off' : ''}`}>
               <ProductPhoto name={x.name} imageRef={x.image_ref} />
               <div className="pname">{x.name}</div>
-              {x.brand && <div className="muted small">{x.brand}</div>}
+              {(x.brand || deptName(x.category_id)) && <div className="muted small">{[deptName(x.category_id), x.brand].filter(Boolean).join(' · ')}</div>}
               <div className="pprice">{x.price_minor === null ? 'No price' : money(x.price_minor, p.data!.base_currency)}</div>
               <div className={`small${out ? ' bad-text' : ' muted'}`}>{x.track_stock !== 1 ? 'Not counted' : out ? 'Finished' : `${qty(x.on_hand_milli)} in stock`}</div>
             </div>
@@ -396,7 +415,7 @@ export function Ask() {
   }
   const s = st.data;
   return (
-    <Page title="Ask">
+    <Page title="Team AI">
       {st.error && <ErrorBox error={st.error} retry={st.reload} />}
       {!s && !st.error && <Loading />}
       {s && !s.available && <Empty>The assistant is not switched on for this server yet.</Empty>}
@@ -421,6 +440,57 @@ export function Ask() {
           </form>
           <p className="muted small">Used this month: {s.used_ask} of {s.limit} questions.</p>
         </>
+      )}
+    </Page>
+  );
+}
+
+interface DigestSettings { channel: 'whatsapp' | 'telegram'; recipient: string; frequency: 'off' | 'daily' | 'weekly'; send_hour: number; weekday: number; utc_offset_min: number; last_error: string }
+interface DigestInfo { settings: DigestSettings; available: { whatsapp: boolean; telegram: boolean } }
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+export function ReportMessages() {
+  const info = useAsync(() => ownerApi<DigestInfo>('GET', '/digest'), []);
+  const toast = useToast();
+  const [f, setF] = useState<DigestSettings | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<unknown>(null);
+  useEffect(() => { if (info.data && !f) setF(info.data.settings); }, [info.data, f]);
+  const a = info.data?.available;
+  async function save(): Promise<boolean> {
+    if (!f) return false;
+    setBusy(true); setErr(null);
+    try {
+      await ownerApi('PUT', '/digest', { channel: f.channel, recipient: f.recipient, frequency: f.frequency, send_hour: f.send_hour, weekday: f.weekday, utc_offset_min: -new Date().getTimezoneOffset() });
+      return true;
+    } catch (e) { setErr(e); return false; } finally { setBusy(false); }
+  }
+  return (
+    <Page title="Report messages">
+      {info.error && <ErrorBox error={info.error} retry={info.reload} />}
+      {!f && !info.error && <Loading />}
+      {f && (
+        <div className="card stack">
+          <p className="muted">Get a short sales and profit report on your phone, daily or once a week. It is sent from the server, so it arrives even when the shop phone is off.</p>
+          <Field label="How often">{(id) => (
+            <select id={id} value={f.frequency} onChange={(e) => setF({ ...f, frequency: e.target.value as DigestSettings['frequency'] })}>
+              <option value="off">Never</option><option value="daily">Every day</option><option value="weekly">Once a week</option>
+            </select>)}</Field>
+          {f.frequency === 'weekly' && <Field label="Day">{(id) => <select id={id} value={f.weekday} onChange={(e) => setF({ ...f, weekday: Number(e.target.value) })}>{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select>}</Field>}
+          <Field label="Send at">{(id) => <select id={id} value={f.send_hour} onChange={(e) => setF({ ...f, send_hour: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}</select>}</Field>
+          <Field label="Send with">{(id) => (
+            <select id={id} value={f.channel} onChange={(e) => setF({ ...f, channel: e.target.value as DigestSettings['channel'] })}>
+              <option value="whatsapp">WhatsApp{a && !a.whatsapp ? ' (not set up on this server yet)' : ''}</option>
+              <option value="telegram">Telegram{a && !a.telegram ? ' (not set up on this server yet)' : ''}</option>
+            </select>)}</Field>
+          <Field label={f.channel === 'whatsapp' ? 'WhatsApp number, with country code' : 'Telegram chat id'} hint={f.channel === 'whatsapp' ? 'For example +263771234567' : 'Message the shop bot, then your supplier can give you this number.'}>{(id) => <input id={id} value={f.recipient} onChange={(e) => setF({ ...f, recipient: e.target.value })} />}</Field>
+          {f.last_error && <p className="alert alert-bad">The last message failed: {f.last_error}</p>}
+          {err != null && <ErrorBox error={err} />}
+          <div className="row gap">
+            <Button kind="primary" disabled={busy} onClick={async () => { if (await save()) { toast('Saved.'); info.reload(); } }}>Save</Button>
+            <Button disabled={busy} onClick={async () => { if (!(await save())) return; setBusy(true); try { await ownerApi('POST', '/digest/test', {}); toast('A test report was sent.'); } catch (e) { setErr(e); } finally { setBusy(false); } }}>Send a test now</Button>
+          </div>
+        </div>
       )}
     </Page>
   );

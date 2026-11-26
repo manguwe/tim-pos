@@ -26,6 +26,9 @@ class AppPrefs extends ChangeNotifier {
   bool tapFeedback = true;
   bool sendPictures = true;
 
+  /// 'en', 'sn' (Shona) or 'nd' (Ndebele).
+  String language = 'en';
+
   double get textFactor => textSizes[textSize] ?? 1.0;
   String? get fontFamily => (fonts[font] ?? fonts['standard']!).family;
 
@@ -39,6 +42,8 @@ class AppPrefs extends ChangeNotifier {
     tillGrid = (await PhonePrefs.read('till_layout')) != 'list';
     tapFeedback = (await PhonePrefs.read('tap_feedback')) != 'off';
     sendPictures = (await PhonePrefs.read('send_pictures')) != 'off';
+    final lang = await PhonePrefs.read('language');
+    language = lang == 'sn' || lang == 'nd' ? lang! : 'en';
     notifyListeners();
   }
 
@@ -60,6 +65,12 @@ class AppPrefs extends ChangeNotifier {
     font = f;
     notifyListeners();
     await PhonePrefs.write('font', f);
+  }
+
+  Future<void> setLanguage(String code) async {
+    language = code == 'sn' || code == 'nd' ? code : 'en';
+    notifyListeners();
+    await PhonePrefs.write('language', language);
   }
 
   Future<void> setTillGrid(bool v) async {

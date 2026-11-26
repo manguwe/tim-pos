@@ -165,6 +165,8 @@ test('owner reports match the phone\'s own reports on the same sales', { skip: !
   const vat = (phone.prepare("select id from tax_classes where name = 'Standard rated'").get() as any).id;
   const bread = saveProduct(phone, base, { name: 'Bread', price_minor: 150, cost_minor: 90, tax_class_id: vat }, uid);
   const radio = saveProduct(phone, base, { name: 'Radio', price_minor: 4000, cost_minor: 2500 }, uid);
+  phone.prepare("insert into categories (id, shop_id, created_at, device_id, updated_at, version, name, sort_order) values ('cat-food', ?, ?, 'dev-00001', ?, 1, 'Groceries', 1)").run(shop.tenantId, T0, T0);
+  phone.prepare('update products set category_id = ?, version = version + 1 where id = ?').run('cat-food', bread);
   receiveStock(phone, base, { branch_id, product_id: bread, qty_milli: 50_000, unit_cost_minor: 90, opening: true }, uid);
   receiveStock(phone, base, { branch_id, product_id: radio, qty_milli: 5_000, unit_cost_minor: 2500, opening: true }, uid);
   const cash = (currency: string, amount_minor: number) => ({ method_code: 'cash', currency, amount_minor });
@@ -202,6 +204,15 @@ test('owner reports match the phone\'s own reports on the same sales', { skip: !
   assert.deepEqual((await via('daily', '&offset_min=120')).days, same(rep.dailySales(phone, R, 120)));
   assert.deepEqual((await via('products', '&by=profit&limit=10')).products, same(rep.topProducts(phone, R, { by: 'profit', limit: 10 })));
   assert.deepEqual((await via('takings')).takings, same(rep.takings(phone, R)));
+  // Sales by department: bread is in Groceries, the radio has no department.
+  const byDept = (await via('departments')).departments as { department: string; qty_milli: number; revenue_minor: number }[];
+  const all = rep.topProducts(phone, R, { by: 'revenue', limit: 100 }) as { product_id: string; qty_milli: number; revenue_minor: number }[];
+  assert.deepEqual(byDept.map((d) => d.department).sort(), ['Groceries', 'No department']);
+  assert.equal(byDept.find((d) => d.department === 'Groceries')!.revenue_minor, all.find((p) => p.product_id === bread)!.revenue_minor);
+  assert.equal(byDept.find((d) => d.department === 'No department')!.revenue_minor, all.find((p) => p.product_id === radio)!.revenue_minor);
+  const cat = await via('catalogue');
+  assert.deepEqual(cat.departments.map((d: any) => d.name), ['Groceries']);
+  assert.equal(cat.products.find((p: any) => p.id === bread).category_id, 'cat-food');
   const stock = await via('stock');
   assert.deepEqual(stock.value, same(rep.stockValue(phone, { top: 50 })));
   assert.deepEqual(stock.out_of_stock, same(rep.outOfStock(phone)));

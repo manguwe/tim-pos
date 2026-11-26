@@ -256,3 +256,37 @@ test('with fiscalisation on, each sale is queued for the tax authority', () => {
   sell(s.db, ctx, s.cart({ lines: [{ product_id: bread, qty_milli: 1_000 }], payments: [cash(100)] }));
   assert.equal((s.db.prepare('select status from fiscal_documents').get() as any).status, 'queued');
 });
+
+test('quantity prices: from the break quantity every unit is cheaper, the highest break reached wins, and cost stays per unit', () => {
+  const s = shop();
+  const tee = s.product('T-shirt', 500, { cost_minor: 300 }); s.stock(tee, 100_000);
+  s.put('price_breaks', { product_id: tee, tier_id: null, currency: 'USD', min_qty_milli: 3_000, price_minor: 400 });
+  s.put('price_breaks', { product_id: tee, tier_id: null, currency: 'USD', min_qty_milli: 10_000, price_minor: 350 });
+  const sellQty = (qty: number) => {
+    const r = sell(s.db, ctx, s.cart({ lines: [{ product_id: tee, qty_milli: qty }], payments: [cash(100_000)] }));
+    const line = s.db.prepare('select * from sale_lines order by rowid desc limit 1').get() as any;
+    return { total: r.total_minor, unit: line.unit_price_minor as number, cost: line.unit_cost_minor as number };
+  };
+  assert.deepEqual(sellQty(2_000), { total: 1000, unit: 500, cost: 300 });   // below the break: normal price
+  assert.deepEqual(sellQty(3_000), { total: 1200, unit: 400, cost: 300 });   // 3 for 12.00
+  assert.deepEqual(sellQty(4_000), { total: 1600, unit: 400, cost: 300 });
+  assert.deepEqual(sellQty(12_000), { total: 4200, unit: 350, cost: 300 });  // the 10+ price
+  // Profit differs per sale, as the shopkeeper expects: 3 shirts make 1200 - 900, 12 make 4200 - 3600.
+});
+
+test('quantity prices: a customer tier\'s own break wins, a typed price overrides, and other currencies are converted', () => {
+  const s = shop();
+  const tee = s.product('T-shirt', 500, { cost_minor: 300 }); s.stock(tee, 100_000);
+  s.put('price_breaks', { product_id: tee, tier_id: null, currency: 'USD', min_qty_milli: 3_000, price_minor: 400 });
+  s.put('price_breaks', { product_id: tee, tier_id: s.ids.wholesale, currency: 'USD', min_qty_milli: 3_000, price_minor: 300 });
+  const unitOf = () => (s.db.prepare('select unit_price_minor u from sale_lines order by rowid desc limit 1').get() as any).u as number;
+  sell(s.db, ctx, s.cart({ price_tier_id: s.ids.wholesale, lines: [{ product_id: tee, qty_milli: 3_000 }], payments: [cash(100_000)] }));
+  assert.equal(unitOf(), 300);
+  sell(s.db, ctx, s.cart({ lines: [{ product_id: tee, qty_milli: 3_000, unit_price_minor: 450 }], payments: [cash(100_000)] }));
+  assert.equal(unitOf(), 450);
+  // 4.00 USD at 26.5 is 106.00 ZiG; the normal 5.00 USD price converts to 132.50 ZiG.
+  sell(s.db, ctx, s.cart({ sale_currency: 'ZiG', lines: [{ product_id: tee, qty_milli: 3_000 }], payments: [cash(100_000, 'ZiG')] }));
+  assert.equal(unitOf(), 10_600);
+  sell(s.db, ctx, s.cart({ sale_currency: 'ZiG', lines: [{ product_id: tee, qty_milli: 1_000 }], payments: [cash(100_000, 'ZiG')] }));
+  assert.equal(unitOf(), 13_250);
+});

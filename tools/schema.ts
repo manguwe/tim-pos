@@ -60,6 +60,12 @@ export const SCHEMA: Record<string, TableDef> = {
     cols: 'product_id!>products tier_id>price_tiers unit_id>units currency! price_minor! effective_from!:i',
     indexes: ['product_id, tier_id, currency, effective_from'],
   },
+  // Quantity prices: from min_qty_milli upwards, each unit costs price_minor (for example 3 or more at 4.00 each).
+  price_breaks: {
+    cols: 'product_id!>products tier_id>price_tiers currency! min_qty_milli! price_minor!',
+    checks: ['check (min_qty_milli > 0)', 'check (price_minor >= 0)'],
+    indexes: ['product_id, currency'],
+  },
   promotions: { cols: 'name! kind! rules starts_at:i ends_at:i is_active' },
   promotion_products: { cols: 'promotion_id!>promotions product_id>products category_id>categories' },
 

@@ -47,6 +47,7 @@ const VERSIONED = [
   'bundle_items',
   'price_tiers',
   'product_prices',
+  'price_breaks',
   'promotions',
   'promotion_products',
   'stock_batches',

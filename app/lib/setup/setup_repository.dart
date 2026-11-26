@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../auth/auth_repository.dart' show defaultRoles, hashPin, roleNames, validatePin;
 import '../core/uuid7.dart';
 import '../data/sql_db.dart';
+import '../selling/money.dart' show divRound;
 
 /// Shop set-up and catalogue writes. Port of tools/src/setup.ts, which is tested against the real schema.
 /// Everything is written through normal tables, so database triggers log each row for sync.
@@ -58,6 +59,26 @@ final Map<String, CountryPreset> presets = {
   ),
 };
 
+/// Currencies a shop can add with one tap. The provider code for ZiG is ZWG; the app keeps calling it ZiG.
+const List<Map<String, Object?>> knownCurrencies = [
+  {'code': 'USD', 'name': 'US dollar', 'symbol': r'$', 'minor_units': 2, 'rounding_increment_minor': 5},
+  {'code': 'ZiG', 'name': 'Zimbabwe Gold', 'symbol': 'ZiG', 'minor_units': 2, 'rounding_increment_minor': 100},
+  {'code': 'ZMW', 'name': 'Zambian kwacha', 'symbol': 'K', 'minor_units': 2, 'rounding_increment_minor': 10},
+  {'code': 'ZAR', 'name': 'South African rand', 'symbol': 'R', 'minor_units': 2, 'rounding_increment_minor': 10},
+  {'code': 'BWP', 'name': 'Botswana pula', 'symbol': 'P', 'minor_units': 2, 'rounding_increment_minor': 5},
+  {'code': 'MZN', 'name': 'Mozambican metical', 'symbol': 'MT', 'minor_units': 2, 'rounding_increment_minor': 10},
+];
+
+/// Pass this as the department filter to list only products that have no department yet.
+const String noDepartment = '__none__';
+
+/// Departments a shop can add with one tap, then rename or remove.
+const List<String> suggestedDepartments = [
+  'Groceries', 'Beverages', 'Fresh produce', 'Butchery', 'Bakery', 'Frozen foods', 'Snacks and sweets',
+  'Toiletries and cosmetics', 'Household and cleaning', 'Stationery', 'Electronics', 'Phone accessories',
+  'Clothing', 'Hardware', 'Airtime and services',
+];
+
 class ProductInput {
   const ProductInput({
     this.id,
@@ -73,7 +94,10 @@ class ProductInput {
     this.isActive = true,
     this.brand,
     this.imageRef,
+    this.categoryId,
   });
+  /// The department. Null leaves it as it is; an empty text removes the product from its department.
+  final String? categoryId;
   /// Brand (for example the name on the packet). Null leaves it as it is; empty clears it.
   final String? brand;
   /// File name of the product picture. Null leaves the picture as it is.
@@ -145,10 +169,12 @@ class SetupRepository {
   Future<bool> isSetUp() async => (await db.query('select 1 as x from shops where deleted_at is null limit 1')).isNotEmpty;
 
   /// First-time set-up. Does nothing if the shop already exists.
-  Future<({bool created, String? ownerId})> seedShop({required String name, required String countryCode, String? branchName, bool taxRegistered = false, String? taxNumber, String? ownerName, String? ownerPin}) async {
+  Future<({bool created, String? ownerId})> seedShop({required String name, required String countryCode, String? branchName, bool taxRegistered = false, String? taxNumber, String? ownerName, String? ownerPin, String? baseCurrency}) async {
     final shopName = _need(name, 'Enter the shop name.');
     final preset = presets[countryCode.toUpperCase()];
     if (preset == null) throw SetupError('unknown_country', 'That country has no preset yet.');
+    final base = baseCurrency ?? preset.baseCurrency;
+    if (!preset.currencies.any((c) => c['code'] == base)) throw SetupError('bad_currency', 'Choose one of the currencies for that country.');
     String? ownerHash;
     if (ownerPin != null) {
       _need(ownerName, 'Enter the owner\'s name.');
@@ -160,7 +186,7 @@ class SetupRepository {
     return db.transaction((tx) async {
       if (await _get(tx, 'select id from shops where deleted_at is null limit 1') != null) return (created: false, ownerId: null);
       await _add(tx, 'shops', {
-        'id': shopId, 'name': shopName, 'country_code': countryCode.toUpperCase(), 'base_currency': preset.baseCurrency,
+        'id': shopId, 'name': shopName, 'country_code': countryCode.toUpperCase(), 'base_currency': base,
         'tax_registered': taxRegistered ? 1 : 0, 'tax_number': taxNumber,
       }, now, versioned: true);
       final branchId = await _add(tx, 'branches', {'name': (branchName ?? '').trim().isEmpty ? 'Main branch' : branchName!.trim(), 'is_active': 1}, now, versioned: true);
@@ -194,6 +220,33 @@ class SetupRepository {
     });
   }
 
+  /// The shop's currencies, main one first.
+  Future<List<Map<String, Object?>>> shopCurrencies() => db.query(
+      'select c.code, c.name, c.symbol, c.minor_units from currencies c where c.deleted_at is null and c.is_active = 1 '
+      'order by (c.code = (select base_currency from shops where deleted_at is null limit 1)) desc, c.code');
+
+  /// Adds a currency the shop wants to take or compare. Does nothing if it is already there.
+  Future<void> addCurrency(String code) async {
+    final known = knownCurrencies.where((c) => c['code'] == code);
+    if (known.isEmpty) throw SetupError('unknown_currency', 'That currency is not available yet.');
+    final now = _clock();
+    await db.transaction((tx) async {
+      final have = await _get(tx, 'select id, deleted_at, is_active from currencies where code = ?', [code]);
+      if (have == null) {
+        await _add(tx, 'currencies', {...known.first, 'is_active': 1}, now, versioned: true);
+      } else if (have['deleted_at'] != null || have['is_active'] != 1) {
+        await tx.exec('update currencies set is_active = 1, deleted_at = null, version = version + 1, updated_at = ? where id = ?', [now, have['id']]);
+      }
+    });
+  }
+
+  /// Today's rate for each pair, newest per pair: [from, to, rateMicro, since].
+  Future<List<Map<String, Object?>>> latestRates() => db.query(
+      'select e.from_currency, e.to_currency, e.rate_micro, e.effective_from from exchange_rates e '
+      'where e.deleted_at is null and e.effective_from = (select max(x.effective_from) from exchange_rates x '
+      'where x.from_currency = e.from_currency and x.to_currency = e.to_currency and x.deleted_at is null) '
+      'order by e.from_currency, e.to_currency');
+
   /// Sets today's rate: how many millionths of [to] one [from] is worth. A new row each time; history is kept.
   Future<void> setExchangeRate(String from, String to, int rateMicro) async {
     if (from == to) throw SetupError('same_currency', 'Choose two different currencies.');
@@ -224,6 +277,7 @@ class SetupRepository {
         'is_active': p.isActive ? 1 : 0, 'cost_minor': p.costMinor, 'cost_currency': base,
         if (p.brand != null) 'brand': p.brand!.trim().isEmpty ? null : p.brand!.trim(),
         if (p.imageRef != null) 'image_ref': p.imageRef,
+        if (p.categoryId != null) 'category_id': p.categoryId!.isEmpty ? null : p.categoryId,
       };
       String id;
       if (p.id != null) {
@@ -286,16 +340,16 @@ class SetupRepository {
   }
 
   /// Products for the catalogue list, with what is on the shelf.
-  Future<List<Map<String, Object?>>> listProducts(String query) async {
+  Future<List<Map<String, Object?>>> listProducts(String query, {String? categoryId}) async {
     final like = '%${query.trim().replaceAll('%', '').replaceAll('_', '')}%';
     return db.query(
-      'select p.id, p.name, p.sku, p.brand, p.image_ref, p.cost_minor, p.track_stock, p.is_active, '
+      'select p.id, p.name, p.sku, p.brand, p.image_ref, p.category_id, p.cost_minor, p.track_stock, p.is_active, '
       '(select pp.price_minor from product_prices pp where pp.product_id = p.id and pp.deleted_at is null and pp.tier_id is (select id from price_tiers where is_default = 1 and deleted_at is null) '
       'and pp.currency = (select base_currency from shops where deleted_at is null limit 1) order by pp.effective_from desc, pp.created_at desc limit 1) as price_minor, '
       '(select coalesce(sum(qty_milli), 0) from stock_levels l where l.product_id = p.id) as on_hand_milli, '
       "(select group_concat(barcode) from product_barcodes b where b.product_id = p.id and b.deleted_at is null) as barcodes "
-      'from products p where p.deleted_at is null and (p.name like ? or p.sku like ?) order by p.name limit 200',
-      [like, like],
+      'from products p where p.deleted_at is null and (p.name like ? or p.sku like ?)${categoryId == null || categoryId.isEmpty ? '' : categoryId == noDepartment ? ' and p.category_id is null' : ' and p.category_id = ?'} order by p.name limit 200',
+      [like, like, if (categoryId != null && categoryId.isNotEmpty && categoryId != noDepartment) categoryId],
     );
   }
 
@@ -329,5 +383,96 @@ class SetupRepository {
           (priceMinor: _i(r['price_minor']), since: _i(r['effective_from'])),
       ];
 
+  /// Quantity prices of a product in the shop's main currency, lowest quantity first.
+  Future<List<({int minQtyMilli, int priceMinor})>> listBreaks(String productId) async => [
+        for (final r in await db.query(
+          'select min_qty_milli, price_minor from price_breaks where product_id = ? and deleted_at is null and tier_id is null '
+          'and currency = (select base_currency from shops where deleted_at is null limit 1) order by min_qty_milli',
+          [productId],
+        ))
+          (minQtyMilli: _i(r['min_qty_milli']), priceMinor: _i(r['price_minor'])),
+      ];
+
+  /// Replaces the product's quantity prices. From each quantity upwards every unit is at that price.
+  Future<void> saveBreaks(String productId, List<({int minQtyMilli, int priceMinor})> breaks) async {
+    if (breaks.length > 6) throw SetupError('too_many', 'Use at most 6 quantity prices.');
+    final seen = <int>{};
+    for (final b in breaks) {
+      if (b.minQtyMilli <= 1000) throw SetupError('bad_quantity', 'A quantity price starts from 2 or more.');
+      if (b.priceMinor < 0) throw SetupError('bad_amount', 'The price must be zero or more.');
+      if (!seen.add(b.minQtyMilli)) throw SetupError('duplicate', 'Two quantity prices start at the same quantity.');
+    }
+    final now = _clock();
+    await db.transaction((tx) async {
+      final base = (await _get(tx, 'select base_currency from shops where deleted_at is null limit 1'))?['base_currency'] as String?;
+      if (base == null) throw SetupError('shop_not_set_up', 'Set up the shop first.');
+      if (await _get(tx, 'select 1 as x from products where id = ? and deleted_at is null', [productId]) == null) throw SetupError('not_found', 'That product was not found.');
+      for (final r in await tx.query('select id from price_breaks where product_id = ? and currency = ? and tier_id is null and deleted_at is null', [productId, base])) {
+        await _edit(tx, 'price_breaks', r['id'] as String, {'deleted_at': now}, now);
+      }
+      for (final b in breaks) {
+        await _add(tx, 'price_breaks', {'product_id': productId, 'tier_id': null, 'currency': base, 'min_qty_milli': b.minQtyMilli, 'price_minor': b.priceMinor}, now, versioned: true);
+      }
+    });
+  }
+
   Future<List<Map<String, Object?>>> taxClasses() => db.query('select id, name, rate_bp from tax_classes where deleted_at is null order by name');
+
+  // ---- departments (categories) ----
+
+  /// Departments in the order the shop chose, with how many products each holds.
+  Future<List<Map<String, Object?>>> listCategories() => db.query(
+        'select c.id, c.name, c.sort_order, '
+        '(select count(*) from products p where p.category_id = c.id and p.deleted_at is null) as products '
+        'from categories c where c.deleted_at is null order by c.sort_order, c.name',
+      );
+
+  /// Adds a department, or renames one when [id] is given. Names are not repeated (capital letters do not count).
+  Future<String> saveCategory({String? id, required String name}) async {
+    final n = _need(name, 'Enter the department name.').replaceAll(RegExp(r'\s+'), ' ');
+    if (n.length > 60) throw SetupError('too_long', 'Use at most 60 characters.');
+    final now = _clock();
+    return db.transaction((tx) async {
+      final dup = await _get(tx, 'select id from categories where deleted_at is null and lower(name) = lower(?) and id <> ?', [n, id ?? '']);
+      if (dup != null) throw SetupError('duplicate_department', 'There is already a department called $n.');
+      if (id != null) {
+        await _edit(tx, 'categories', id, {'name': n}, now);
+        return id;
+      }
+      final next = ((await _get(tx, 'select coalesce(max(sort_order), 0) as m from categories where deleted_at is null'))?['m'] as num? ?? 0).toInt() + 1;
+      return _add(tx, 'categories', {'name': n, 'sort_order': next}, now, versioned: true);
+    });
+  }
+
+  /// Removes a department. Its products stay, with no department.
+  Future<void> deleteCategory(String id) async {
+    final now = _clock();
+    await db.transaction((tx) async {
+      for (final p in await tx.query('select id from products where category_id = ? and deleted_at is null', [id])) {
+        await _edit(tx, 'products', p['id'] as String, {'category_id': null}, now);
+      }
+      await _edit(tx, 'categories', id, {'deleted_at': now}, now);
+    });
+  }
+
+  /// Adds the common departments that do not exist yet. Safe to use twice. Returns how many were added.
+  Future<int> addSuggestedCategories() async {
+    var added = 0;
+    for (final name in suggestedDepartments) {
+      try {
+        await saveCategory(name: name);
+        added++;
+      } on SetupError catch (e) {
+        if (e.code != 'duplicate_department') rethrow;
+      }
+    }
+    return added;
+  }
+}
+
+/// The cost of one item when a whole pack was bought: 12 shirts for 36.00 is 3.00 each. Rounded to the nearest cent,
+/// so a pack that does not divide evenly is off by less than half a cent per item.
+int unitCostFromPack(int packTotalMinor, int packQtyMilli) {
+  if (packTotalMinor < 0 || packQtyMilli <= 0) throw SetupError('bad_amount', 'Enter the pack price and how many are in it.');
+  return divRound(packTotalMinor * 1000, packQtyMilli);
 }

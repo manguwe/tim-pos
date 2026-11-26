@@ -4,9 +4,12 @@ import { HttpError, asObject, ok, optStr, readBody, send, str, type Reply, type 
 import * as licensing from './services/licensing.ts';
 import * as sync from './services/sync.ts';
 import * as billing from './services/billing.ts';
+import * as fx from './services/fx.ts';
+import * as digest from './services/digest.ts';
 import * as vendor from './services/vendor.ts';
 import * as owners from './services/owners.ts';
 import * as photos from './services/photos.ts';
+import { FEATURES } from './features.ts';
 import * as ai from './services/ai.ts';
 import { serveDashboard } from './static.ts';
 
@@ -52,6 +55,7 @@ route('POST', '/v1/licence/refresh', 'device', (_req, ctx, w) => ok(licensing.re
 route('POST', '/v1/sync/push', 'device', (req, ctx, w) => ok(sync.push(ctx, dev(w), req.body)));
 route('GET', '/v1/sync/pull', 'device', (req, ctx, w) => ok(sync.pull(ctx, dev(w), req.query)));
 route('POST', '/v1/photos', 'device', (req, ctx, w) => photos.put(ctx, dev(w), req.body));
+route('GET', '/v1/rates', 'device', (_req, ctx) => ok(fx.currentRates(ctx)));
 route('GET', '/v1/ai/status', 'device', (_req, ctx, w) => ai.status(ctx, dev(w).tenant.id));
 route('POST', '/v1/ai/suggest-product', 'device', (req, ctx, w) => ai.suggestProduct(ctx, dev(w), req.body));
 route('POST', '/v1/ai/ask', 'device', (req, ctx, w) => ai.ask(ctx, dev(w).tenant.id, (req.body as { include_sales?: unknown } | null)?.include_sales === true, req.body));
@@ -73,10 +77,16 @@ route('GET', '/v1/vendor/tenants/:id', 'vendor', (req, ctx) => ok(vendor.tenantD
 route('PATCH', '/v1/vendor/tenants/:id', 'vendor', (req, ctx, w) => ok(vendor.updateTenant(ctx, usr(w), req.params.id as string, req.body)));
 route('GET', '/v1/vendor/plans', 'vendor', (_r, ctx) => ok({ plans: vendor.listPlans(ctx) }));
 route('POST', '/v1/vendor/plans', 'vendor', (req, ctx, w) => ok(vendor.createPlan(ctx, usr(w), req.body), 201));
+route('PATCH', '/v1/vendor/plans/:id', 'vendor', (req, ctx, w) => ok(vendor.updatePlan(ctx, usr(w), req.params.id as string, req.body)));
+route('POST', '/v1/vendor/plans/suggested', 'vendor', (_r, ctx, w) => ok(vendor.addSuggestedPlans(ctx, usr(w))));
+route('GET', '/v1/vendor/features', 'vendor', () => ok({ features: FEATURES }));
+route('POST', '/v1/vendor/licences/:id/plan', 'vendor', (req, ctx, w) => ok(vendor.changePlan(ctx, usr(w), req.params.id as string, req.body)));
 route('POST', '/v1/vendor/tenants/:id/licences', 'vendor', (req, ctx, w) =>
   ok(vendor.issueLicence(ctx, usr(w), req.params.id as string, req.body), 201));
 route('POST', '/v1/vendor/licences/:id/extend', 'vendor', (req, ctx, w) =>
   ok(vendor.extendLicence(ctx, usr(w), req.params.id as string, req.body)));
+route('POST', '/v1/vendor/licences/:id/convert', 'vendor', (req, ctx, w) =>
+  ok(vendor.convertTrial(ctx, usr(w), req.params.id as string, req.body)));
 route('POST', '/v1/vendor/licences/:id/suspend', 'vendor', (req, ctx, w) =>
   ok(vendor.setLicenceStatus(ctx, usr(w), req.params.id as string, 'suspended')));
 route('POST', '/v1/vendor/licences/:id/resume', 'vendor', (req, ctx, w) =>
@@ -85,6 +95,9 @@ route('POST', '/v1/vendor/licences/:id/limits', 'vendor', (req, ctx, w) =>
   ok(vendor.updateLimits(ctx, usr(w), req.params.id as string, req.body)));
 route('POST', '/v1/vendor/licences/:id/rotate-key', 'vendor', (req, ctx, w) =>
   ok(vendor.rotateKey(ctx, usr(w), req.params.id as string), 201));
+route('GET', '/v1/vendor/tenants/:id/users', 'vendor', (req, ctx) => ok(vendor.shopUsers(ctx, req.params.id as string)));
+route('POST', '/v1/vendor/devices/:id/pin-reset', 'vendor', (req, ctx, w) =>
+  ok(vendor.issuePinResetCode(ctx, usr(w), req.params.id as string, req.body)));
 route('POST', '/v1/vendor/devices/:id/release', 'vendor', (req, ctx, w) =>
   ok(vendor.releaseDevice(ctx, usr(w), req.params.id as string, req.body)));
 route('POST', '/v1/vendor/releases', 'vendor', (req, ctx, w) => ok(vendor.publishRelease(ctx, usr(w), req.body), 201));
@@ -127,6 +140,9 @@ const ownerReady = (w: { owner?: owners.OwnerUser }) => {
   if (own(w).must_change_password) throw new HttpError(403, 'password_change_required', 'Choose your own password first');
   return own(w).tenant_id;
 };
+route('GET', '/v1/owner/digest', 'owner', (_r, ctx, w) => ok({ settings: digest.getSettings(ctx, ownerReady(w)), available: digest.available(ctx) }));
+route('PUT', '/v1/owner/digest', 'owner', (req, ctx, w) => ok({ settings: digest.saveSettings(ctx, ownerReady(w), req.body), available: digest.available(ctx) }));
+route('POST', '/v1/owner/digest/test', 'owner', async (_r, ctx, w) => { await digest.sendTest(ctx, ownerReady(w)); return ok({ sent: true }); });
 route('GET', '/v1/owner/ai/status', 'owner', (_r, ctx, w) => ai.status(ctx, ownerReady(w)));
 route('POST', '/v1/owner/ai/ask', 'owner', (req, ctx, w) => ai.ask(ctx, ownerReady(w), true, req.body));
 route('GET', '/v1/owner/reports/:name', 'owner', (req, ctx, w) => ok(owners.report(ctx, own(w), req.params.name as string, req.query)));
@@ -179,6 +195,13 @@ export function createHandler(ctx: Ctx) {
         throw new HttpError(400, 'bad_path', 'The address is not valid');
       }
       logPath = url.pathname;
+      // The bare address is what people type first, so send it to the dashboard.
+      if (url.pathname === '/' && (nodeReq.method === 'GET' || nodeReq.method === 'HEAD') && ctx.config.dashboardDir) {
+        res.writeHead(302, { location: '/dashboard/', 'cache-control': 'no-store' });
+        res.end();
+        status = 302;
+        return;
+      }
       if (serveDashboard(nodeReq, res, url.pathname, ctx.config.dashboardDir)) {
         status = res.statusCode;
         return;

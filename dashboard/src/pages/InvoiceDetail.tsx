@@ -8,6 +8,7 @@ function Letterhead({ inv }: { inv: Inv }) {
   const p = inv.profile;
   return (
     <div className="letterhead">
+      {p.logo && <img className="logo" src={p.logo} alt="" />}
       <div>
         <div className="biz">{p.business_name || 'Your business name'}</div>
         {p.address && <div className="pre">{p.address}</div>}

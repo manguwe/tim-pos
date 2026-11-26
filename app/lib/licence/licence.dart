@@ -24,6 +24,10 @@ class LicencePayload {
     required this.graceDays,
     required this.maxOfflineDays,
     required this.checkBy,
+    this.maxUsers = 0,
+    this.legacy = false,
+    this.trial = false,
+    this.recoveryKey = '',
   });
 
   final String licenceId;
@@ -45,7 +49,19 @@ class LicencePayload {
   /// The phone must reach the server before this time, or it locks.
   final int checkBy;
 
-  bool hasFeature(String name) => features.contains(name);
+  /// How many people may be set up to sign in. 0 means no limit.
+  final int maxUsers;
+
+  /// True while this is a free trial.
+  final bool trial;
+
+  /// Secret that checks PIN reset codes. Empty on a token issued before the feature; the next online refresh brings it.
+  final String recoveryKey;
+
+  /// True for a licence issued before plans could switch customers and suppliers on or off. Those shops keep both.
+  final bool legacy;
+
+  bool hasFeature(String name) => features.contains(name) || (legacy && (name == 'customers' || name == 'purchasing'));
 
   factory LicencePayload.fromJson(Map<String, dynamic> j) => LicencePayload(
         licenceId: j['licence_id'] as String,
@@ -62,6 +78,10 @@ class LicencePayload {
         graceDays: (j['grace_days'] as num).toInt(),
         maxOfflineDays: (j['max_offline_days'] as num).toInt(),
         checkBy: (j['check_by'] as num).toInt(),
+        maxUsers: (j['max_users'] as num?)?.toInt() ?? 0,
+        legacy: !j.containsKey('max_users'),
+        trial: j['trial'] == true,
+        recoveryKey: (j['recovery_key'] as String?) ?? '',
       );
 }
 

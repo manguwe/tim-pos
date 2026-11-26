@@ -17,7 +17,7 @@ void main() {
   test('every table in the manifest exists, and the database logs and guards changes by itself', () async {
     final db = await openTestDb();
     final manifest = jsonDecode(File('assets/sql/schema_manifest.json').readAsStringSync()) as Map<String, dynamic>;
-    expect(manifest.length, 57);
+    expect(manifest.length, 58);
     for (final t in manifest.keys) {
       final cols = (await db.query('pragma table_info("$t")')).map((r) => r['name']).toSet();
       expect(cols, containsAll(['id', 'shop_id', 'created_at']), reason: t);

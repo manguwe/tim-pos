@@ -74,6 +74,45 @@ void main() {
       expect((await fresh.query('select count(*) c from shops')).single['c'], 0);
     });
 
+    test('the PIN reset code matches the server\'s calculation', () {
+      expect(pinResetCode('0123456789abcdef', '12345678', 'user-1'), '03290361');
+      expect(pinResetCode('k', '00000001', 'u2'), '74036538');
+    });
+
+    test('a forgotten PIN is reset with the vendor\'s code, once, and clears the lock', () async {
+      const key = 'recovery-key-for-test';
+      final challenge = await auth.startPinRecovery();
+      expect(challenge, matches(RegExp(r'^\d{8}$')));
+      expect(await auth.pendingPinRecovery(), challenge);
+      for (var i = 0; i < 5; i++) {
+        try { await auth.login(owner, '9999'); } on AuthError catch (_) {}
+      }
+      final code = pinResetCode(key, challenge, owner);
+      // Wrong code, wrong person, weak new PIN: all refused.
+      await expectLater(auth.recoverPin(userId: owner, recoveryKey: key, code: '00000000', newPin: '4682'), throwsA(authCode('wrong_code')));
+      await expectLater(auth.recoverPin(userId: owner, recoveryKey: key, code: pinResetCode(key, challenge, 'someone-else'), newPin: '4682'), throwsA(authCode('wrong_code')));
+      await expectLater(auth.recoverPin(userId: owner, recoveryKey: key, code: code, newPin: '1111'), throwsA(authCode('weak_pin')));
+      await expectLater(auth.recoverPin(userId: owner, recoveryKey: '', code: code, newPin: '4682'), throwsA(authCode('no_key')));
+      await auth.recoverPin(userId: owner, recoveryKey: key, code: code, newPin: '4682');
+      expect((await auth.login(owner, '4682')).name, 'Tim');
+      // Used up: the same code cannot be replayed.
+      await expectLater(auth.recoverPin(userId: owner, recoveryKey: key, code: code, newPin: '7391'), throwsA(authCode('no_request')));
+      expect((await db.query("select count(*) c from audit_log where action = 'pin_recovered'")).single['c'], 1);
+    });
+
+    test('a recovery request stops after five wrong codes and after a day', () async {
+      const key = 'k';
+      final c = await auth.startPinRecovery();
+      for (var i = 0; i < 5; i++) {
+        await expectLater(auth.recoverPin(userId: owner, recoveryKey: key, code: '00000000', newPin: '4682'), throwsA(authCode('wrong_code')));
+      }
+      await expectLater(auth.recoverPin(userId: owner, recoveryKey: key, code: pinResetCode(key, c, owner), newPin: '4682'), throwsA(authCode('expired')));
+      final c2 = await auth.startPinRecovery();
+      now = t0 + 25 * 3600000;
+      expect(await auth.pendingPinRecovery(), isNull);
+      await expectLater(auth.recoverPin(userId: owner, recoveryKey: key, code: pinResetCode(key, c2, owner), newPin: '4682'), throwsA(authCode('expired')));
+    });
+
     test('wrong PINs count down, then lock with growing waits; the right PIN clears it', () async {
       Future<AuthError> wrong() async {
         try {

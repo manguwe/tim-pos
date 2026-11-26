@@ -92,3 +92,14 @@ test('the audit log names the vendor who did each action', async () => {
     assert.ok(e.vendor_name && e.vendor_email);
   } finally { await h.close(); }
 });
+
+test('the bare address sends people to the dashboard', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tim-dash-'));
+  writeFileSync(join(dir, 'index.html'), '<!doctype html><title>x</title>');
+  const hh = await boot({ dashboardDir: dir });
+  try {
+    const res = await fetch(`${hh.url}/`, { redirect: 'manual' });
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get('location'), '/dashboard/');
+  } finally { await hh.close(); }
+});

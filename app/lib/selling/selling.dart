@@ -282,6 +282,29 @@ class SellingEngine {
           if (inBase == null) throw SaleError('no_price', '${p['name']} has no price in ${cart.saleCurrency}.', {'product_id': p['id']});
           unit = await convert(inBase, base, cart.saleCurrency);
         }
+        // Quantity price: from the break quantity upwards every unit is at the break price (the highest break reached wins).
+        Future<int?> findBreak(String cur) async {
+          final rows = await tx.query(
+            'select price_minor, tier_id from price_breaks where product_id = ? and currency = ? and min_qty_milli <= ? and deleted_at is null '
+            'order by min_qty_milli desc, created_at desc',
+            [p['id'], cur, l.qtyMilli],
+          );
+          for (final r in rows) {
+            if (r['tier_id'] == tierId) return _i(r['price_minor']);
+          }
+          for (final r in rows) {
+            if (r['tier_id'] == null) return _i(r['price_minor']);
+          }
+          return null;
+        }
+
+        final brk = await findBreak(cart.saleCurrency);
+        if (brk != null) {
+          unit = brk;
+        } else if (cart.saleCurrency != base) {
+          final inBase = await findBreak(base);
+          if (inBase != null) unit = await convert(inBase, base, cart.saleCurrency);
+        }
       }
 
       final discount = l.discountMinor;

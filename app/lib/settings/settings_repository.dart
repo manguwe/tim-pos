@@ -24,8 +24,15 @@ const List<SettingDef> shopSettings = [
   SettingDef(key: 'require_shift', group: 'Selling', label: 'Cashiers must open a shift before selling', help: 'Every sale is then tied to a shift, so cash-up can account for it.', kind: SettingKind.bool, def: '0'),
   SettingDef(key: 'allow_negative_stock', group: 'Selling', label: 'Allow selling when stock shows zero', help: 'Off by default: a sale is blocked when there is not enough stock. Turn on only if you do not keep stock counts up to date.', kind: SettingKind.bool, def: '0'),
   SettingDef(key: 'layby_min_deposit_pct', group: 'Selling', label: 'Minimum layby deposit (%)', help: 'The share of the total a customer must pay when starting a layby. 0 means no minimum.', kind: SettingKind.int, def: '0', min: 0, max: 100),
+  SettingDef(key: 'receipt_shop_name', group: 'Receipts', label: 'Name on the receipt', help: 'Leave empty to print your shop name as it is on your licence.', kind: SettingKind.text, def: '', maxLen: 40),
+  SettingDef(key: 'receipt_address', group: 'Receipts', label: 'Address on the receipt', help: 'Street and town. Leave empty to print nothing.', kind: SettingKind.text, def: '', maxLen: 100),
+  SettingDef(key: 'receipt_phone', group: 'Receipts', label: 'Phone number on the receipt', help: 'For example 0772 123 456.', kind: SettingKind.text, def: '', maxLen: 30),
   SettingDef(key: 'receipt_header', group: 'Receipts', label: 'Receipt header', help: 'A line printed under the shop name, for example a slogan.', kind: SettingKind.text, def: '', maxLen: 120),
   SettingDef(key: 'receipt_footer', group: 'Receipts', label: 'Receipt footer', help: 'Printed at the bottom of receipts and slips, for example your returns policy.', kind: SettingKind.text, def: '', maxLen: 120),
+  SettingDef(key: 'receipt_thanks', group: 'Receipts', label: 'Last line', help: 'The very last line, for example "Thank you, come again". Clear it to print nothing.', kind: SettingKind.text, def: 'Thank you', maxLen: 60),
+  SettingDef(key: 'receipt_show_cashier', group: 'Receipts', label: 'Print the cashier\'s name', help: 'Shows who served the customer.', kind: SettingKind.bool, def: '1'),
+  SettingDef(key: 'receipt_show_customer', group: 'Receipts', label: 'Print the customer\'s name', help: 'Only when a customer was chosen on the sale.', kind: SettingKind.bool, def: '1'),
+  SettingDef(key: 'low_stock_level', group: 'Stock', label: 'Low-stock warning level', help: 'Items with this many or fewer left show on the Low stock list. 0 turns the warning off.', kind: SettingKind.int, def: '5', min: 0, max: 100000),
   SettingDef(key: 'scale_prefix', group: 'Barcodes', label: 'Scale label prefix', help: 'Two digits. Fill in only if you have a shop scale that prints weight labels. Leave empty if not.', kind: SettingKind.text, def: '', maxLen: 2, digits: 2),
 ];
 

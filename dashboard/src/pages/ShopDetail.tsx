@@ -1,13 +1,14 @@
 import { useState } from 'react';
+import { FeaturePicker } from './FeaturePicker.tsx';
 import { api, type AuditEntry, type Device, type Licence, type Plan, type Statement, type ShopDetail as Shop, type OwnerLogin } from '../api.ts';
-import { DAY, countryName, money, endOfDay, fmtDate, fmtTime, licenceState, mainLicence, relative, splitList, todayIso } from '../format.ts';
+import { DAY, countryName, money, endOfDay, fmtDate, fmtTime, licenceState, mainLicence, relative, todayIso } from '../format.ts';
 import { Link } from '../router.tsx';
 import { NewInvoice } from './NewInvoice.tsx';
 import { Badge, Button, InvoiceBadge, Empty, ErrorBox, Field, FormModal, Loading, Page, SecretModal, StateBadge, useAsync, useToast } from '../ui.tsx';
 
 type Dialog =
   | { k: 'edit' } | { k: 'issue' } | { k: 'extend'; l: Licence } | { k: 'limits'; l: Licence }
-  | { k: 'toggle'; l: Licence } | { k: 'rotate'; l: Licence } | { k: 'release'; d: Device } | { k: 'shop-status' }
+  | { k: 'plan'; l: Licence } | { k: 'toggle'; l: Licence } | { k: 'rotate'; l: Licence } | { k: 'release'; d: Device } | { k: 'shop-status' } | { k: 'convert'; l: Licence } | { k: 'pin'; d: Device }
   | { k: 'key'; key: string; what: string } | { k: 'invoice' } | { k: 'owner-add' } | { k: 'owner-reset'; o: OwnerLogin };
 
 export function ShopDetail({ id }: { id: string }) {
@@ -58,10 +59,12 @@ export function ShopDetail({ id }: { id: string }) {
           return (
             <div className="card" key={l.id}>
               <div className="row between">
-                <div><strong>Key ending {retired ? '(replaced)' : l.key_hint}</strong> <StateBadge state={st} />{retired && <> <Badge tone="off">replaced by a newer key</Badge></>}</div>
+                <div><strong>Key ending {retired ? '(replaced)' : l.key_hint}</strong> <StateBadge state={st} />{l.complimentary && <> <Badge tone="good">Free</Badge></>}{l.trial && <> <Badge tone="warn">Trial</Badge></>}{retired && <> <Badge tone="off">replaced by a newer key</Badge></>}</div>
                 {!retired && (
                   <div className="row gap">
+                    {l.trial && <Button small kind="primary" onClick={() => setDlg({ k: 'convert', l })}>Convert to paid</Button>}
                     <Button small onClick={() => setDlg({ k: 'extend', l })}>Extend</Button>
+                    <Button small onClick={() => setDlg({ k: 'plan', l })}>Change plan</Button>
                     <Button small onClick={() => setDlg({ k: 'limits', l })}>Limits</Button>
                     <Button small onClick={() => setDlg({ k: 'toggle', l })}>{l.status === 'active' ? 'Suspend' : 'Resume'}</Button>
                     <Button small onClick={() => setDlg({ k: 'rotate', l })}>New key</Button>
@@ -73,8 +76,10 @@ export function ShopDetail({ id }: { id: string }) {
                 <div><dt>Grace after end</dt><dd>{l.grace_days} days</dd></div>
                 <div><dt>Works offline for</dt><dd>{l.max_offline_days} days</dd></div>
                 <div><dt>Phones / branches</dt><dd>{l.max_devices} / {l.max_branches}</dd></div>
+                <div><dt>Staff</dt><dd>{l.max_users === 0 ? 'Any number' : `Up to ${l.max_users}`}</dd></div>
+                <div><dt>Payment</dt><dd>{l.complimentary ? 'Free, never invoiced' : l.trial ? 'Free trial, not invoiced' : 'Paid'}</dd></div>
                 <div><dt>Issued</dt><dd>{fmtDate(l.issued_at)}</dd></div>
-                {l.features.length > 0 && <div><dt>Features</dt><dd>{l.features.join(', ')}</dd></div>}
+                <div><dt>Features</dt><dd>{l.features.length ? l.features.join(', ') : 'Selling, stock and reports only'}</dd></div>
               </dl>
             </div>
           );
@@ -95,7 +100,7 @@ export function ShopDetail({ id }: { id: string }) {
                     <td>{d.app_version ?? '—'}</td>
                     <td>{fmtDate(d.activated_at)}</td>
                     <td>{d.released_at ? <Badge tone="off">Released {fmtDate(d.released_at)}</Badge> : <>{relative(d.last_seen_at, now)} {stale && <Badge tone="warn">quiet</Badge>}</>}</td>
-                    <td className="right">{!d.released_at && <Button small onClick={() => setDlg({ k: 'release', d })}>Release</Button>}</td>
+                    <td className="right">{!d.released_at && <><Button small onClick={() => setDlg({ k: 'pin', d })}>PIN reset code</Button> <Button small onClick={() => setDlg({ k: 'release', d })}>Release</Button></>}</td>
                   </tr>
                 );
               })}
@@ -167,6 +172,7 @@ export function ShopDetail({ id }: { id: string }) {
       )}
       {dlg?.k === 'issue' && <IssueLicence shopId={s.id} onClose={() => setDlg(null)} onIssued={(key) => { done(); setDlg({ k: 'key', key, what: 'licence' }); }} />}
       {dlg?.k === 'extend' && <ExtendLicence l={dlg.l} onClose={() => setDlg(null)} onDone={() => done('Licence extended.')} />}
+      {dlg?.k === 'plan' && <ChangePlan l={dlg.l} onClose={() => setDlg(null)} onDone={() => done('Plan changed.')} />}
       {dlg?.k === 'limits' && <Limits l={dlg.l} onClose={() => setDlg(null)} onDone={() => done('Limits saved.')} />}
       {dlg?.k === 'toggle' && (
         <FormModal title={dlg.l.status === 'active' ? 'Suspend this licence?' : 'Resume this licence?'} submit={dlg.l.status === 'active' ? 'Suspend licence' : 'Resume licence'} danger={dlg.l.status === 'active'} onClose={() => setDlg(null)}
@@ -180,6 +186,8 @@ export function ShopDetail({ id }: { id: string }) {
           <p>Use this if the key leaked. Phones already activated keep working. The old key stops working for new activations, and a new key is shown once.</p>
         </FormModal>
       )}
+      {dlg?.k === 'convert' && <ConvertTrial l={dlg.l} onClose={() => setDlg(null)} onDone={() => done('Converted to a paid licence.')} />}
+      {dlg?.k === 'pin' && <PinReset shopId={s.id} d={dlg.d} onClose={() => setDlg(null)} />}
       {dlg?.k === 'release' && <ReleasePhone d={dlg.d} onClose={() => setDlg(null)} onDone={() => done('Phone released. Its slot is free.')} />}
       {dlg?.k === 'key' && <SecretModal title={`New ${dlg.what}`} secret={dlg.key} note={dlg.what === 'owner password' ? 'This temporary password is shown only once. Send it to the owner now. They choose their own password when they first sign in.' : 'This key is shown only once and cannot be looked up later. Copy it and send it to the shop owner now.'} onClose={() => setDlg(null)} />}
     </Page>
@@ -239,7 +247,10 @@ function IssueLicence({ shopId, onClose, onIssued }: { shopId: string; onClose: 
   const [branches, setBranches] = useState('');
   const [grace, setGrace] = useState('');
   const [offline, setOffline] = useState('');
-  const [features, setFeatures] = useState('');
+  const [users, setUsers] = useState('');
+  const [free, setFree] = useState(false);
+  const [trial, setTrial] = useState(false);
+  const [features, setFeatures] = useState<string[] | null>(null);
   const plan = plans.data?.plans.find((p) => p.id === planId);
   return (
     <FormModal
@@ -248,13 +259,15 @@ function IssueLicence({ shopId, onClose, onIssued }: { shopId: string; onClose: 
       wide
       onClose={onClose}
       onSubmit={async () => {
-        const body: Record<string, unknown> = { ...termBody(mode, months, date) };
+        const body: Record<string, unknown> = trial ? { trial: true } : { ...termBody(mode, months, date) };
         if (planId) body.plan_id = planId;
         const d = optNum('Phones', devices, 1, 1000); if (d !== undefined) body.max_devices = d;
         const b = optNum('Branches', branches, 1, 1000); if (b !== undefined) body.max_branches = b;
         const g = optNum('Grace days', grace, 0, 365); if (g !== undefined) body.grace_days = g;
         const o = optNum('Offline days', offline, 1, 365); if (o !== undefined) body.max_offline_days = o;
-        if (features.trim()) body.features = splitList(features);
+        const u = optNum('Staff', users, 0, 1000); if (u !== undefined) body.max_users = u;
+        if (features) body.features = features;
+        if (free) body.complimentary = true;
         const r = await api<{ key: string }>('POST', `/tenants/${shopId}/licences`, body);
         onIssued(r.key);
       }}
@@ -267,7 +280,9 @@ function IssueLicence({ shopId, onClose, onIssued }: { shopId: string; onClose: 
           </select>
         )}
       </Field>
-      <Term months={months} setMonths={setMonths} date={date} setDate={setDate} mode={mode} setMode={setMode} />
+      <label className="check"><input type="checkbox" checked={free} onChange={(e) => setFree(e.target.checked)} /> <strong>Free licence</strong>: this shop is never invoiced</label>
+      <label className="check"><input type="checkbox" checked={trial} onChange={(e) => { setTrial(e.target.checked); if (e.target.checked) setFree(false); }} /> <strong>10-day free trial</strong>: no grace period, one trial per shop. Convert it to paid later.</label>
+      {!trial && <Term months={months} setMonths={setMonths} date={date} setDate={setDate} mode={mode} setMode={setMode} />}
       <details>
         <summary>Change limits for this licence</summary>
         <div className="grid2">
@@ -276,7 +291,9 @@ function IssueLicence({ shopId, onClose, onIssued }: { shopId: string; onClose: 
           <Field label="Grace days after the end" hint="Leave empty for the server's default.">{(id) => <input id={id} type="number" min={0} max={365} value={grace} onChange={(e) => setGrace(e.target.value)} />}</Field>
           <Field label="Days a phone may work offline" hint="Leave empty for the server's default.">{(id) => <input id={id} type="number" min={1} max={365} value={offline} onChange={(e) => setOffline(e.target.value)} />}</Field>
         </div>
-        <Field label="Features" hint="Comma separated. Empty uses the plan's.">{(id) => <input id={id} value={features} onChange={(e) => setFeatures(e.target.value)} />}</Field>
+        <Field label="Staff who can sign in" hint="Empty uses the plan's. 0 means any number.">{(id) => <input id={id} type="number" min={0} max={1000} value={users} onChange={(e) => setUsers(e.target.value)} />}</Field>
+        <p className="muted small">Features come from the plan. To choose them by hand, tick below.</p>
+        <FeaturePicker value={features ?? plan?.features ?? []} onChange={setFeatures} />
       </details>
     </FormModal>
   );
@@ -299,13 +316,16 @@ function Limits({ l, onClose, onDone }: { l: Licence; onClose: () => void; onDon
   const [branches, setBranches] = useState(String(l.max_branches));
   const [grace, setGrace] = useState(String(l.grace_days));
   const [offline, setOffline] = useState(String(l.max_offline_days));
-  const [features, setFeatures] = useState(l.features.join(', '));
+  const [users, setUsers] = useState(String(l.max_users));
+  const [free, setFree] = useState(l.complimentary);
+  const [features, setFeatures] = useState<string[]>(l.features);
   return (
     <FormModal title="Licence limits" submit="Save limits" onClose={onClose}
       onSubmit={async () => {
         await api('POST', `/licences/${l.id}/limits`, {
           max_devices: optNum('Phones', devices, 1, 1000), max_branches: optNum('Branches', branches, 1, 1000),
-          grace_days: optNum('Grace days', grace, 0, 365), max_offline_days: optNum('Offline days', offline, 1, 365), features: splitList(features),
+          grace_days: optNum('Grace days', grace, 0, 365), max_offline_days: optNum('Offline days', offline, 1, 365), features,
+          max_users: optNum('Staff', users, 0, 1000), complimentary: free,
         });
         onDone();
       }}>
@@ -315,7 +335,29 @@ function Limits({ l, onClose, onDone }: { l: Licence; onClose: () => void; onDon
         <Field label="Grace days after the end">{(id) => <input id={id} type="number" min={0} max={365} required value={grace} onChange={(e) => setGrace(e.target.value)} />}</Field>
         <Field label="Days a phone may work offline">{(id) => <input id={id} type="number" min={1} max={365} required value={offline} onChange={(e) => setOffline(e.target.value)} />}</Field>
       </div>
-      <Field label="Features" hint="Comma separated.">{(id) => <input id={id} value={features} onChange={(e) => setFeatures(e.target.value)} />}</Field>
+      <Field label="Staff who can sign in" hint="0 means any number.">{(id) => <input id={id} type="number" min={0} max={1000} required value={users} onChange={(e) => setUsers(e.target.value)} />}</Field>
+      <FeaturePicker value={features} onChange={setFeatures} />
+      <label className="check"><input type="checkbox" checked={free} onChange={(e) => setFree(e.target.checked)} /> <strong>Free licence</strong>: this shop is never invoiced</label>
+    </FormModal>
+  );
+}
+
+function ChangePlan({ l, onClose, onDone }: { l: Licence; onClose: () => void; onDone: () => void }) {
+  const plans = useAsync(() => api<{ plans: Plan[] }>('GET', '/plans'), []);
+  const [planId, setPlanId] = useState(l.plan_id ?? '');
+  const plan = plans.data?.plans.find((p) => p.id === planId);
+  return (
+    <FormModal title="Change plan" submit="Move to this plan" onClose={onClose} onSubmit={async () => { if (!planId) throw new Error('Choose a plan.'); await api('POST', `/licences/${l.id}/plan`, { plan_id: planId }); onDone(); }}>
+      <Field label="Plan">
+        {(id) => (
+          <select id={id} value={planId} onChange={(e) => setPlanId(e.target.value)}>
+            <option value="">Choose a plan</option>
+            {(plans.data?.plans ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        )}
+      </Field>
+      {plan && <p className="muted">{plan.max_devices} phone(s), {plan.max_branches} branch(es), {plan.max_users === 0 ? 'any number of staff' : `up to ${plan.max_users} staff`}. Features: {plan.features.join(', ') || 'selling, stock and reports only'}.</p>}
+      <p className="muted small">The shop's phones get this the next time they connect. The end date does not change. Record any payment for the upgrade yourself.</p>
     </FormModal>
   );
 }
@@ -340,6 +382,65 @@ function AddOwner({ shopId, onClose, onDone }: { shopId: string; onClose: () => 
     }}>
       <Field label="Owner's name">{(id) => <input id={id} required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
       <Field label="Email" hint="They sign in with this. One email can belong to one shop only.">{(id) => <input id={id} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />}</Field>
+    </FormModal>
+  );
+}
+
+function ConvertTrial({ l, onClose, onDone }: { l: Licence; onClose: () => void; onDone: () => void }) {
+  const plans = useAsync(() => api<{ plans: Plan[] }>('GET', '/plans'), []);
+  const [planId, setPlanId] = useState(l.plan_id ?? '');
+  const [months, setMonths] = useState('12');
+  return (
+    <FormModal title="Convert trial to paid" submit="Convert" onClose={onClose} onSubmit={async () => {
+      if (!planId) throw new Error('Choose a plan.');
+      const n = Number(months);
+      if (!Number.isInteger(n) || n < 1 || n > 120) throw new Error('Enter a whole number of months, 1 to 120.');
+      await api('POST', `/licences/${l.id}/convert`, { plan_id: planId, months: n });
+      onDone();
+    }}>
+      <Field label="Plan">
+        {(id) => (
+          <select id={id} value={planId} onChange={(e) => setPlanId(e.target.value)}>
+            <option value="">Choose a plan</option>
+            {(plans.data?.plans ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        )}
+      </Field>
+      <Field label="Paid for how many months?" hint="The paid period starts today. Invoicing starts with the next monthly run.">{(id) => <input id={id} type="number" min={1} max={120} value={months} onChange={(e) => setMonths(e.target.value)} />}</Field>
+    </FormModal>
+  );
+}
+
+function PinReset({ shopId, d, onClose }: { shopId: string; d: Device; onClose: () => void }) {
+  const users = useAsync(() => api<{ users: { id: string; name: string }[] }>('GET', `/tenants/${shopId}/users`), [shopId]);
+  const [userId, setUserId] = useState('');
+  const [challenge, setChallenge] = useState('');
+  const [code, setCode] = useState<string | null>(null);
+  if (code) {
+    return (
+      <FormModal title="PIN reset code" submit="Done" onClose={onClose} onSubmit={async () => onClose()}>
+        <p>Read this code to the person. They type it on the phone, then choose a new PIN.</p>
+        <p style={{ fontSize: 32, letterSpacing: 4, fontWeight: 700 }}>{code}</p>
+      </FormModal>
+    );
+  }
+  return (
+    <FormModal title="PIN reset code" submit="Get code" onClose={onClose} onSubmit={async () => {
+      if (!userId) throw new Error('Choose the person who forgot their PIN.');
+      if (!/^\d{8}$/.test(challenge.trim())) throw new Error('The number shown on the phone has 8 digits.');
+      const r = await api<{ code: string }>('POST', `/devices/${d.id}/pin-reset`, { user_id: userId, challenge: challenge.trim() });
+      setCode(r.code);
+    }}>
+      <p className="muted">First make sure it really is the shop owner or manager. On the phone they tap "Forgot PIN" and read you the 8-digit number. This is logged.</p>
+      <Field label="Who forgot their PIN?" hint="Only people already synced from the shop's phones are listed.">
+        {(id) => (
+          <select id={id} value={userId} onChange={(e) => setUserId(e.target.value)}>
+            <option value="">Choose a person</option>
+            {(users.data?.users ?? []).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        )}
+      </Field>
+      <Field label="Number shown on the phone">{(id) => <input id={id} inputMode="numeric" maxLength={8} value={challenge} onChange={(e) => setChallenge(e.target.value)} />}</Field>
     </FormModal>
   );
 }

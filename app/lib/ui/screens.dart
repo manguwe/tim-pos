@@ -4,6 +4,8 @@ import '../app_controller.dart';
 import '../licence/licence.dart';
 import '../reports/report_repository.dart';
 import '../selling/catalog.dart' show CurrencyInfo;
+import '../l10n/strings.dart';
+import '../share/whatsapp.dart';
 import 'theme.dart';
 import 'ask_screen.dart';
 import 'about_screen.dart';
@@ -11,7 +13,10 @@ import 'app_settings_screen.dart';
 import 'auth_screens.dart';
 import 'price_list_screen.dart';
 import 'setup_screens.dart';
+import 'currency_screens.dart';
 import 'customer_screens.dart';
+import 'department_screens.dart';
+import 'expense_screens.dart';
 import 'printer_screens.dart';
 import 'purchasing_screens.dart';
 import 'report_screens.dart';
@@ -104,7 +109,8 @@ class _ActivationScreenState extends State<ActivationScreen> {
   }
 }
 
-String lockText(LockReason? r) => switch (r) {
+String lockText(LockReason? r, {bool trial = false}) => switch (r) {
+      LockReason.expired when trial => 'Your 10-day free trial has ended. Your sales and data are safe. Subscribe to carry on, then connect to the internet to unlock.',
       LockReason.expired => 'Your licence has expired. Renew it with your supplier, then connect to the internet to unlock.',
       LockReason.syncOverdue => 'This phone has been offline for too long. Connect to the internet to unlock it. Your sales are safe.',
       LockReason.clockBehind => 'The phone clock is behind. Fix the date and time, then connect to the internet to unlock.',
@@ -112,6 +118,11 @@ String lockText(LockReason? r) => switch (r) {
       LockReason.serverRefused => 'Your supplier has stopped this licence or removed this device. Contact them to unlock.',
       null => 'This app is locked.',
     };
+
+bool _trialEnded(AppController c) {
+  final p = c.licence.payload;
+  return p != null && p.trial && DateTime.now().millisecondsSinceEpoch > p.expiresAt;
+}
 
 class LockedScreen extends StatelessWidget {
   const LockedScreen({super.key, required this.controller});
@@ -133,7 +144,7 @@ class LockedScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 Text('TIM-POS is locked', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 10),
-                Text(c.message ?? lockText(c.licence.state.reason), textAlign: TextAlign.center),
+                Text(c.message ?? lockText(_trialEnded(c) ? LockReason.expired : c.licence.state.reason, trial: c.licence.payload?.trial ?? false), textAlign: TextAlign.center),
                 const SizedBox(height: 24),
                 if (c.engine != null)
                   FilledButton.icon(
@@ -190,7 +201,28 @@ class _HomeScreenState extends State<HomeScreen> {
       LicenceStatus.active when st.expiresSoon => 'Licence ends in ${st.daysLeft} day(s). Renew soon.',
       _ => null,
     };
+    final trial = lic.payload?.trial == true && st.status == LicenceStatus.active;
     return ListView(padding: const EdgeInsets.all(16), children: [
+      if (trial)
+        Card(
+          color: Brand.teal.withValues(alpha: 0.12),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Free trial: ${st.daysLeft} ${st.daysLeft == 1 ? 'day' : 'days'} left', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              const SizedBox(height: 4),
+              Text(tr('Everything you enter now stays when you subscribe.')),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.chat),
+                  label: Text(tr('Subscribe on WhatsApp')),
+                  onPressed: () => openOrCopy(context, whatsappLink('Hello, I would like to subscribe to TIM-POS for ${lic.payload?.shopName ?? 'my shop'}.', phone: AboutScreen.supportPhone), 'Subscribe to TIM-POS: ${AboutScreen.supportPhone}'),
+                ),
+              ),
+            ]),
+          ),
+        ),
       if (banner != null) Card(color: Brand.amber.withValues(alpha: 0.18), child: Padding(padding: const EdgeInsets.all(14), child: Text(banner))),
       FutureBuilder<bool>(
         future: c.shopIsSetUp(),
@@ -199,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (snap.data != true) {
             return FilledButton.icon(
               icon: const Icon(Icons.storefront),
-              label: const Text('Set up your shop'),
+              label: Text(tr('Set up your shop')),
               onPressed: () async {
                 await Navigator.of(context).push(MaterialPageRoute<bool>(builder: (_) => ShopSetupScreen(controller: c)));
                 await c.recheck();
@@ -213,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(backgroundColor: Brand.teal, textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                   icon: const Icon(Icons.point_of_sale, size: 30),
-                  label: const Text('Start selling'),
+                  label: Text(tr('Start selling')),
                   onPressed: _startSelling,
                 ),
               ),
@@ -242,40 +274,47 @@ class _HomeScreenState extends State<HomeScreen> {
     final p = c.licence.payload!;
     final productTiles = <Widget>[
       if (c.can('product.edit') || c.can('stock.receive'))
-        _HomeTile(icon: Icons.inventory_2_outlined, color: Brand.teal, label: 'Products', hint: 'Add items, prices and stock', onTap: () => _open(ProductsScreen(controller: c))),
+        _HomeTile(icon: Icons.inventory_2_outlined, color: Brand.teal, label: tr('Products'), hint: tr('Add items, prices and stock'), onTap: () => _open(ProductsScreen(controller: c))),
       if (c.can('product.edit') && c.setupRepository() != null)
-        _HomeTile(icon: Icons.sell_outlined, color: Brand.green, label: 'Price list', hint: 'See and change all your prices', onTap: () => _open(PriceListScreen(controller: c))),
+        _HomeTile(icon: Icons.category_outlined, color: Brand.teal, label: tr('Departments'), hint: tr('Groceries, accessories and so on'), onTap: () => _open(DepartmentsScreen(repo: c.setupRepository()!))),
+      if (c.can('product.edit') && c.setupRepository() != null)
+        _HomeTile(icon: Icons.sell_outlined, color: Brand.green, label: tr('Price list'), hint: tr('See and change all your prices'), onTap: () => _open(PriceListScreen(controller: c))),
       if (c.can('stock.adjust') && c.stockRepository() != null)
-        _HomeTile(icon: Icons.fact_check_outlined, color: Brand.orange, label: 'Stock count', hint: 'Count the shelf, fix stock', onTap: () => _open(StockScreen(repo: c.stockRepository()!, barcodes: c.barcodeRepository()))),
+        _HomeTile(icon: Icons.fact_check_outlined, color: Brand.orange, label: tr('Stock count'), hint: tr('Count the shelf, fix stock'), onTap: () => _open(StockScreen(repo: c.stockRepository()!, barcodes: c.barcodeRepository()))),
+      if (c.can('stock.adjust') && c.stockRepository() != null)
+        _HomeTile(icon: Icons.warning_amber_outlined, color: Brand.coral, label: tr('Low stock'), hint: tr('What is running out'), onTap: () => _open(LowStockScreen(controller: c))),
     ];
     final peopleTiles = <Widget>[
-      if (c.can('sale.create') && c.customerRepository() != null)
-        _HomeTile(icon: Icons.groups_outlined, color: Brand.orange, label: 'Customers', hint: 'Who owes you, laybys', onTap: () => _open(CustomersScreen(repo: c.customerRepository()!, canEdit: c.can('customer.manage'), printing: c.printService()))),
-      if (c.can('stock.receive') && c.purchasingRepository() != null)
-        _HomeTile(icon: Icons.local_shipping_outlined, color: Brand.navy, label: 'Suppliers and buying', hint: 'Orders, deliveries, what you owe', onTap: () => _open(SuppliersScreen(repo: c.purchasingRepository()!, canPay: c.can('supplier.pay')))),
+      if (c.customersLicensed && c.can('sale.create') && c.customerRepository() != null)
+        _HomeTile(icon: Icons.groups_outlined, color: Brand.orange, label: tr('Customers'), hint: tr('Who owes you, laybys'), onTap: () => _open(CustomersScreen(repo: c.customerRepository()!, canEdit: c.can('customer.manage'), printing: c.printService()))),
+      if (c.purchasingLicensed && c.can('stock.receive') && c.purchasingRepository() != null)
+        _HomeTile(icon: Icons.local_shipping_outlined, color: Brand.navy, label: tr('Suppliers and buying'), hint: tr('Orders, deliveries, what you owe'), onTap: () => _open(SuppliersScreen(repo: c.purchasingRepository()!, canPay: c.can('supplier.pay')))),
       if (c.can('user.manage'))
-        _HomeTile(icon: Icons.badge_outlined, color: Brand.teal, label: 'Staff', hint: 'Add people and PINs', onTap: () => _open(StaffScreen(controller: c))),
+        _HomeTile(icon: Icons.badge_outlined, color: Brand.teal, label: tr('Staff'), hint: tr('Add people and PINs'), onTap: () => _open(StaffScreen(controller: c))),
     ];
     final reportTiles = <Widget>[
-      _HomeTile(icon: Icons.auto_awesome_outlined, color: Brand.teal, label: 'Ask', hint: 'Prices, stock, how we did (needs internet)', onTap: () => _open(AskScreen(ai: c.ai, includeSales: c.can('report.view')))),
+      if (c.aiLicensed)
+        _HomeTile(icon: Icons.auto_awesome_outlined, color: Brand.teal, label: tr('Team AI'), hint: tr('Prices, stock, how we did (needs internet)'), onTap: () => _open(AskScreen(ai: c.ai, includeSales: c.can('report.view')))),
       if (c.can('report.view') && c.reportRepository() != null)
-        _HomeTile(icon: Icons.bar_chart_outlined, color: Brand.green, label: 'Sales reports', hint: 'Sales, profit, stock', onTap: () => _open(ReportScreen(repo: c.reportRepository()!))),
+        _HomeTile(icon: Icons.bar_chart_outlined, color: Brand.green, label: tr('Sales reports'), hint: tr('Sales, profit, stock'), onTap: () => _open(ReportScreen(repo: c.reportRepository()!, shopName: c.licence.payload?.shopName))),
+      if (c.can('report.view') && c.expenseRepository() != null)
+        _HomeTile(icon: Icons.receipt_long_outlined, color: Brand.coral, label: tr('Expenses'), hint: tr('Rent, transport, electricity'), onTap: () => _open(ExpensesScreen(controller: c))),
       if (c.can('shift.manage') && c.shiftRepository() != null)
-        _HomeTile(icon: Icons.account_balance_wallet_outlined, color: Brand.teal, label: 'Cash-up', hint: 'Count the cash at end of day', onTap: () => _open(ShiftScreen(repo: c.shiftRepository()!, printing: c.printService()))),
+        _HomeTile(icon: Icons.account_balance_wallet_outlined, color: Brand.teal, label: tr('Cash-up'), hint: tr('Count the cash at end of day'), onTap: () => _open(ShiftScreen(repo: c.shiftRepository()!, printing: c.printService()))),
       if (c.can('sale.create') && c.returnRepository() != null && c.authRepository() != null)
-        _HomeTile(icon: Icons.assignment_return_outlined, color: Brand.coral, label: 'Returns', hint: 'Customer brings an item back', onTap: () => _open(ReturnScreen(repo: c.returnRepository()!, auth: c.authRepository()!, userId: c.currentUser?.id, printing: c.printService()))),
+        _HomeTile(icon: Icons.assignment_return_outlined, color: Brand.coral, label: tr('Returns'), hint: tr('Customer brings an item back'), onTap: () => _open(ReturnScreen(repo: c.returnRepository()!, auth: c.authRepository()!, userId: c.currentUser?.id, printing: c.printService()))),
     ];
     final moreTiles = <Widget>[
-      _HomeTile(icon: Icons.palette_outlined, color: Brand.navy, label: 'App settings', hint: 'Dark mode, text size, font', onTap: () => _open(const AppSettingsScreen())),
-      _HomeTile(icon: Icons.support_agent_outlined, color: Brand.teal, label: 'Help and contact', hint: 'About the developer, WhatsApp, call', onTap: () => _open(const AboutScreen())),
+      _HomeTile(icon: Icons.palette_outlined, color: Brand.navy, label: tr('App settings'), hint: tr('Dark mode, text size, font'), onTap: () => _open(const AppSettingsScreen())),
+      _HomeTile(icon: Icons.support_agent_outlined, color: Brand.teal, label: tr('Help and contact'), hint: tr('About the developer, WhatsApp, call'), onTap: () => _open(const AboutScreen())),
       if (c.can('rate.edit'))
-        _HomeTile(icon: Icons.currency_exchange, color: Brand.navy, label: 'Exchange rate', hint: 'Set today\'s rate', onTap: () => showRateDialog(context, c)),
+        _HomeTile(icon: Icons.currency_exchange, color: Brand.navy, label: tr('Currencies'), hint: tr('Rates and converter'), onTap: () => _open(CurrenciesScreen(controller: c))),
       if (c.can('sale.create') && c.printService() != null)
-        _HomeTile(icon: Icons.print_outlined, color: Brand.navy, label: 'Receipt printer', hint: 'Connect your printer', onTap: () => _open(PrinterScreen(printing: c.printService()!))),
+        _HomeTile(icon: Icons.print_outlined, color: Brand.navy, label: tr('Receipt printer'), hint: tr('Connect your printer'), onTap: () => _open(PrinterScreen(printing: c.printService()!))),
       if (c.can('settings.edit') && c.settingsRepository() != null)
-        _HomeTile(icon: Icons.settings_outlined, color: Brand.navy, label: 'Shop settings', hint: 'Shop name, receipt, options', onTap: () => _open(SettingsScreen(repo: c.settingsRepository()!))),
+        _HomeTile(icon: Icons.settings_outlined, color: Brand.navy, label: tr('Shop settings'), hint: tr('Shop name, receipt, options'), onTap: () => _open(SettingsScreen(repo: c.settingsRepository()!, shopName: p.shopName))),
       if (c.can('settings.edit') && c.zimraLicensed && c.fiscalRepository() != null)
-        _HomeTile(icon: Icons.receipt_long_outlined, color: Brand.navy, label: 'ZIMRA fiscal', hint: 'Tax receipts', onTap: () => _open(FiscalScreen(repo: c.fiscalRepository()!, gateway: c.fiscalGateway, signer: c.fiscalSigner))),
+        _HomeTile(icon: Icons.receipt_long_outlined, color: Brand.navy, label: tr('ZIMRA fiscal'), hint: tr('Tax receipts'), onTap: () => _open(FiscalScreen(repo: c.fiscalRepository()!, gateway: c.fiscalGateway, signer: c.fiscalSigner))),
       Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -291,11 +330,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Only the tabs this person can use. Today and More are always there.
     final pages = <({String label, IconData icon, IconData selected, Widget body})>[
-      (label: 'Today', icon: Icons.home_outlined, selected: Icons.home, body: _today(context)),
-      if (productTiles.isNotEmpty) (label: 'Products', icon: Icons.inventory_2_outlined, selected: Icons.inventory_2, body: _list(productTiles, '')),
-      if (peopleTiles.isNotEmpty) (label: 'People', icon: Icons.groups_outlined, selected: Icons.groups, body: _list(peopleTiles, '')),
-      if (reportTiles.isNotEmpty) (label: 'Reports', icon: Icons.bar_chart_outlined, selected: Icons.bar_chart, body: _list(reportTiles, '')),
-      (label: 'More', icon: Icons.more_horiz, selected: Icons.more_horiz, body: _list(moreTiles, '')),
+      (label: tr('Today'), icon: Icons.home_outlined, selected: Icons.home, body: _today(context)),
+      if (productTiles.isNotEmpty) (label: tr('Products'), icon: Icons.inventory_2_outlined, selected: Icons.inventory_2, body: _list(productTiles, '')),
+      if (peopleTiles.isNotEmpty) (label: tr('People'), icon: Icons.groups_outlined, selected: Icons.groups, body: _list(peopleTiles, '')),
+      if (reportTiles.isNotEmpty) (label: tr('Reports'), icon: Icons.bar_chart_outlined, selected: Icons.bar_chart, body: _list(reportTiles, '')),
+      (label: tr('More'), icon: Icons.more_horiz, selected: Icons.more_horiz, body: _list(moreTiles, '')),
     ];
     final tab = _tab < pages.length ? _tab : 0;
     return Scaffold(
@@ -363,7 +402,7 @@ class _TodayCardState extends State<_TodayCard> {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Today', style: Theme.of(context).textTheme.titleSmall),
+          Text(tr('Today'), style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 6),
           Text(money(s.revenueMinor), style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Brand.teal)),
           Text(s.sales == 0 ? 'No sales yet today' : '${s.sales} ${s.sales == 1 ? 'sale' : 'sales'}'),

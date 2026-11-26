@@ -126,3 +126,17 @@ This is the simple, correct first version. A shop with years of heavy trading wi
 
 ## AI assistant
 Optional, online only. See `../AI-SETUP.md`. Env: `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_MONTHLY_LIMIT`; licence feature `ai`; routes `/v1/ai/*` (phone) and `/v1/owner/ai/*` (web).
+
+## Trials, PIN reset, backups, live rates and report messages
+
+**10-day trial.** On a shop's page, Issue licence, tick "10-day free trial" and pick the plan you will sell. The trial has no grace period, is allowed once per shop, and is never invoiced. When the shop pays, press Convert to paid, choose the plan and the months. Nothing the shop entered is lost. On day 11 the phone shows "trial ended, your data is safe" until you convert.
+
+**Forgotten PIN.** On the phone: choose the person, tap Forgot PIN, and send you the 8-digit number (there is a WhatsApp button). On the dashboard: shop page, Phones, PIN reset code, choose the person, type the number, read the code back. Each code only works for that person on that phone, and is logged under Activity. Check it really is the owner or manager first. The phone needs to have connected to the internet once after this update to hold its recovery key.
+
+**Backups.** The server writes a full copy of the database into `data/backups/` at start-up and then daily, keeping the newest 14 (`BACKUP_DIR`, `BACKUP_KEEP`; `BACKUP_DIR=off` turns it off). `node src/cli.ts backup --to <folder>` makes one by hand. Copy the folder off this PC regularly (a USB drive or cloud folder): a backup on the same disk does not survive the disk. The licence signing key (`data/dev-secrets.json` in development) is copied beside the backups.
+
+**Live exchange rates.** The server fetches daily rates from open.er-api.com (no key) and keeps the last copy, so phones can still ask when the internet is down. Phones use them in Currencies, Get live rates. The provider asks for a credit line, which the app shows.
+
+**Report messages.** The owner chooses Report messages in the dashboard: daily or weekly, the hour, and WhatsApp or Telegram.
+- Telegram is free and automatic: create a bot with @BotFather and set `TELEGRAM_BOT_TOKEN`. The owner's recipient is their Telegram chat id.
+- WhatsApp sent by the server needs a Meta WhatsApp Business account, an approved message template with one text variable, and `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_TEMPLATE` (and `WHATSAPP_LANG`). Meta may charge per message. Until that is set up, phones can still send any report on WhatsApp by hand with the green WhatsApp button on Reports.

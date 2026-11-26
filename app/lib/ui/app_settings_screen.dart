@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/strings.dart';
+
 import '../settings/app_prefs.dart';
 import 'about_screen.dart';
 import 'theme.dart';
@@ -22,7 +24,22 @@ class AppSettingsScreen extends StatelessWidget {
       body: ListenableBuilder(
         listenable: p,
         builder: (context, _) => ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 32), children: [
-          _heading('Colours'),
+          _heading(tr('Language')),
+          SegmentedButton<String>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 'en', label: Text('English')),
+              ButtonSegment(value: 'sn', label: Text('Shona')),
+              ButtonSegment(value: 'nd', label: Text('Ndebele')),
+            ],
+            selected: {p.language},
+            onSelectionChanged: (s) => p.setLanguage(s.first),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text('The main screens and buttons change. The Shona and Ndebele words are a first draft and still need checking by a native speaker. Tell us what to correct (More, then Help and contact). Screens you already have open update when you open them again.', style: TextStyle(color: Colors.grey)),
+          ),
+          _heading(tr('Colours')),
           SegmentedButton<ThemeMode>(
             showSelectedIcon: false,
             segments: const [
@@ -34,7 +51,7 @@ class AppSettingsScreen extends StatelessWidget {
             onSelectionChanged: (s) => p.setThemeMode(s.first),
           ),
           const Padding(padding: EdgeInsets.only(top: 6), child: Text('"Phone" follows your phone\'s own light or dark setting.', style: TextStyle(color: Colors.grey))),
-          _heading('Text size'),
+          _heading(tr('Text size')),
           SegmentedButton<String>(
             showSelectedIcon: false,
             segments: const [
@@ -46,7 +63,7 @@ class AppSettingsScreen extends StatelessWidget {
             selected: {p.textSize},
             onSelectionChanged: (s) => p.setTextSize(s.first),
           ),
-          _heading('Font'),
+          _heading(tr('Font')),
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (final e in AppPrefs.fonts.entries)
               ChoiceChip(
