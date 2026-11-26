@@ -12,7 +12,7 @@ Set `DASHBOARD_DIR` to serve the files from another folder, or `DASHBOARD_DIR=` 
 
 ## What it does
 
-| Page | What you can do |
+| Page | What you can do | 
 | --- | --- |
 | Overview | Money owed and overdue invoices. Counts of shops, active licences, phones, licences ending within 14 days, in grace, quiet phones, suspended shops. "Needs attention" lists each shop that has a problem and why. |
 | Shops | Search and filter, add a shop. |

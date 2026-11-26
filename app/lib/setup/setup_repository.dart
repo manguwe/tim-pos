@@ -243,8 +243,8 @@ class SetupRepository {
   /// Today's rate for each pair, newest per pair: [from, to, rateMicro, since].
   Future<List<Map<String, Object?>>> latestRates() => db.query(
       'select e.from_currency, e.to_currency, e.rate_micro, e.effective_from from exchange_rates e '
-      'where e.deleted_at is null and e.effective_from = (select max(x.effective_from) from exchange_rates x '
-      'where x.from_currency = e.from_currency and x.to_currency = e.to_currency and x.deleted_at is null) '
+      'where e.effective_from = (select max(x.effective_from) from exchange_rates x '
+      'where x.from_currency = e.from_currency and x.to_currency = e.to_currency) '
       'order by e.from_currency, e.to_currency');
 
   /// Sets today's rate: how many millionths of [to] one [from] is worth. A new row each time; history is kept.

@@ -49,7 +49,7 @@ void main() {
 
   test('the shop can change what the receipt says', () {
     final usual = sampleReceiptText({}, shopName: 'Mbare Mini Market');
-    expect(usual, contains('Mbare Mini Market'));
+    expect(usual.replaceAll(RegExp(r'\s+'), ' '), contains('Mbare Mini Market')); // the name is printed large, so it may wrap
     expect(usual, contains('Cashier'));
     expect(usual, contains('Thank you'));
     final custom = sampleReceiptText(
